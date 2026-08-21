@@ -52,11 +52,12 @@ jobs:
 
           # ==============================
           # 公式BOAT RACE オッズページ
+          # PC版を使用
           # ==============================
 
           url = (
-              "https://www.boatrace.jp/owsp/sp/race/odds3t"
-              f"?hd={date_value}&jcd={venue}&rno={race_no}"
+              "https://www.boatrace.jp/owpc/pc/race/odds3t"
+              f"?rno={race_no}&jcd={venue}&hd={date_value}"
           )
 
           print("================================")
@@ -72,10 +73,10 @@ jobs:
               url,
               headers={
                   "User-Agent": (
-                      "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) "
-                      "AppleWebKit/605.1.15 "
-                      "(KHTML, like Gecko) Version/18.0 "
-                      "Mobile/15E148 Safari/604.1"
+                      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                      "AppleWebKit/537.36 "
+                      "(KHTML, like Gecko) "
+                      "Chrome/131.0.0.0 Safari/537.36"
                   )
               }
           )
@@ -89,6 +90,7 @@ jobs:
               "url": url,
               "venue_code": venue,
               "race_no": race_no,
+              "date": date_value,
               "downloaded": False,
               "html_length": 0,
               "odds_table_found": False,
@@ -121,18 +123,31 @@ jobs:
               print("HTML文字数:", len(html))
 
               # ==============================
+              # 取得HTMLを保存
+              # ==============================
+
+              Path(
+                  "official_odds_test.context.html"
+              ).write_text(
+                  html,
+                  encoding="utf-8"
+              )
+
+              print("取得HTML保存: OK")
+
+              # ==============================
               # オッズエリア確認
               # ==============================
 
-              if 'id="content_odds"' in html:
+              if '3連単オッズ' in html:
 
                   result["odds_table_found"] = True
 
-                  print("オッズエリア: OK")
+                  print("3連単オッズエリア: OK")
 
               else:
 
-                  print("オッズエリア: 見つかりません")
+                  print("3連単オッズエリア: 見つかりません")
 
               # ==============================
               # oddsPoint を取得
@@ -169,7 +184,6 @@ jobs:
                   # カンマ除去
                   value = value.replace(",", "")
 
-                  # 数値の場合だけ採用
                   try:
 
                       number = float(value)
@@ -187,7 +201,7 @@ jobs:
               )
 
               # ==============================
-              # 最初の20件を確認用に保存
+              # 最初の20件を確認
               # ==============================
 
               result["sample"] = {
@@ -270,7 +284,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          git add -- official_odds_test.json
+          git add -- official_odds_test.json official_odds_test.context.html
 
           if git diff --cached --quiet; then
             echo "変更なし"
