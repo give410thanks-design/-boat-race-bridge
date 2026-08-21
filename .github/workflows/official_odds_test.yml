@@ -23,7 +23,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Inspect official BOAT RACE HTML
+      - name: Install parser
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install beautifulsoup4
+
+      - name: Get and parse official BOAT RACE odds
         env:
           VENUE_CODE: ${{ github.event.inputs.venue_code }}
           RACE_NO: ${{ github.event.inputs.race_no }}
@@ -34,6 +39,8 @@ jobs:
           import urllib.request
           from datetime import datetime, timezone, timedelta
           from pathlib import Path
+
+          from bs4 import BeautifulSoup
 
           JST = timezone(timedelta(hours=9))
           now = datetime.now(JST)
@@ -47,20 +54,6 @@ jobs:
               f"?hd={date_value}&jcd={venue}&rno={race_no}"
           )
 
-          print("URL:", url)
-
-          request = urllib.request.Request(
-              url,
-              headers={
-                  "User-Agent": (
-                      "Mozilla/5.0 "
-                      "(X11; Linux x86_64) "
-                      "AppleWebKit/537.36 "
-                      "Chrome/131.0 Safari/537.36"
-                  )
-              }
-          )
-
           result = {
               "generated_at": now.isoformat(),
               "url": url,
@@ -68,14 +61,30 @@ jobs:
               "race_no": race_no,
               "downloaded": False,
               "html_length": 0,
-              "odds_text_found": False,
-              "context_before": "",
-              "context_after": "",
+              "odds_table_found": False,
+              "odds_count": 0,
+              "odds": {},
+              "sample": {},
               "error": None
           }
 
           try:
-              with urllib.request.urlopen(request, timeout=30) as response:
+              request = urllib.request.Request(
+                  url,
+                  headers={
+                      "User-Agent": (
+                          "Mozilla/5.0 "
+                          "(X11; Linux x86_64) "
+                          "AppleWebKit/537.36 "
+                          "Chrome/131.0 Safari/537.36"
+                      )
+                  }
+              )
+
+              with urllib.request.urlopen(
+                  request,
+                  timeout=30
+              ) as response:
                   html = response.read().decode(
                       "utf-8",
                       errors="replace"
@@ -84,74 +93,270 @@ jobs:
               result["downloaded"] = True
               result["html_length"] = len(html)
 
-              print("HTML取得成功")
+              soup = BeautifulSoup(
+                  html,
+                  "html.parser"
+              )
+
+              # ----------------------------------------
+              # 3連単オッズ表を探す
+              # ----------------------------------------
+
+              target_table = None
+
+              for table in soup.find_all("table"):
+
+                  odds_cells = table.select(
+                      "td.oddsPoint"
+                  )
+
+                  if len(odds_cells) >= 100:
+                      target_table = table
+                      break
+
+              if target_table is None:
+                  raise RuntimeError(
+                      "3連単オッズ表を発見できませんでした"
+                  )
+
+              result["odds_table_found"] = True
+
+              # ----------------------------------------
+              # 1着の艇番を取得
+              # ----------------------------------------
+
+              header = target_table.find("thead")
+
+              first_boats = []
+
+              if header:
+                  for th in header.find_all("th"):
+                      text = th.get_text(
+                          " ",
+                          strip=True
+                      )
+
+                      if text in ["1", "2", "3", "4", "5", "6"]:
+                          first_boats.append(
+                              int(text)
+                          )
+
+              if first_boats != [1, 2, 3, 4, 5, 6]:
+                  raise RuntimeError(
+                      f"1着艇番の取得に失敗: {first_boats}"
+                  )
+
+              # ----------------------------------------
+              # tbodyの行を取得
+              # ----------------------------------------
+
+              tbody = target_table.find("tbody")
+
+              rows = tbody.find_all("tr")
+
+              # 6ブロック × 4行 = 24行
+              if len(rows) != 24:
+                  raise RuntimeError(
+                      f"想定外の行数: {len(rows)}"
+                  )
+
+              odds = {}
+
+              # ----------------------------------------
+              # 1着ごとに4行ずつ処理
+              # ----------------------------------------
+
+              for first_index, first_boat in enumerate(
+                  first_boats
+              ):
+
+                  block_rows = rows[
+                      first_index * 4:
+                      first_index * 4 + 4
+                  ]
+
+                  second_boat = None
+
+                  for row_index, row in enumerate(
+                      block_rows
+                  ):
+
+                      cells = row.find_all(
+                          ["td", "th"],
+                          recursive=False
+                      )
+
+                      # oddsPointを持つセルを取得
+                      odds_cells = [
+                          cell
+                          for cell in cells
+                          if "oddsPoint"
+                          in cell.get("class", [])
+                      ]
+
+                      # この行には6個のオッズがある
+                      if len(odds_cells) != 6:
+                          raise RuntimeError(
+                              "オッズセル数が6ではありません: "
+                              f"{len(odds_cells)}"
+                          )
+
+                      # 最初の行には
+                      # rowspanの2着艇が存在する
+                      if row_index == 0:
+
+                          normal_cells = [
+                              cell
+                              for cell in cells
+                              if "oddsPoint"
+                              not in cell.get(
+                                  "class", []
+                              )
+                          ]
+
+                          # 最初のnormal cellが2着艇
+                          if not normal_cells:
+                              raise RuntimeError(
+                                  "2着艇を取得できません"
+                              )
+
+                          text = normal_cells[0].get_text(
+                              strip=True
+                          )
+
+                          if text not in [
+                              "1", "2", "3",
+                              "4", "5", "6"
+                          ]:
+                              raise RuntimeError(
+                                  f"2着艇が不正: {text}"
+                              )
+
+                          second_boat = int(text)
+
+                      # --------------------------------
+                      # ここが重要
+                      # --------------------------------
+                      #
+                      # oddsPointの直前にある
+                      # boat番号セルが3着艇
+                      #
+                      # 例:
+                      #
+                      # 2 | 3 | 16.1
+                      #
+                      # → 2着=2
+                      # → 3着=3
+                      # → 16.1倍
+                      # --------------------------------
+
+                      for odds_cell in odds_cells:
+
+                          previous = odds_cell.find_previous(
+                              "td"
+                          )
+
+                          if previous is None:
+                              raise RuntimeError(
+                                  "3着艇を取得できません"
+                              )
+
+                          third_text = previous.get_text(
+                              strip=True
+                          )
+
+                          if third_text not in [
+                              "1", "2", "3",
+                              "4", "5", "6"
+                          ]:
+                              raise RuntimeError(
+                                  f"3着艇が不正: "
+                                  f"{third_text}"
+                              )
+
+                          third_boat = int(
+                              third_text
+                          )
+
+                          odds_text = odds_cell.get_text(
+                              strip=True
+                          )
+
+                          odds_value = float(
+                              odds_text
+                          )
+
+                          # 同じ艇は除外
+                          if (
+                              first_boat
+                              == second_boat
+                              or
+                              first_boat
+                              == third_boat
+                              or
+                              second_boat
+                              == third_boat
+                          ):
+                              continue
+
+                          key = (
+                              f"{first_boat}-"
+                              f"{second_boat}-"
+                              f"{third_boat}"
+                          )
+
+                          odds[key] = odds_value
+
+              # ----------------------------------------
+              # 結果
+              # ----------------------------------------
+
+              result["odds"] = odds
+              result["odds_count"] = len(odds)
+
+              # 最初の20件
+              keys = list(odds.keys())[:20]
+
+              result["sample"] = {
+                  key: odds[key]
+                  for key in keys
+              }
+
+              print("================================")
+              print("公式3連単オッズ解析結果")
+              print("================================")
+              print("URL:", url)
               print("HTML文字数:", len(html))
+              print("1着艇:", first_boats)
+              print("オッズ件数:", len(odds))
+              print("")
+              print("サンプル:")
 
-              # 「3連単オッズ」の位置を探す
-              target = "3連単オッズ"
-              position = html.find(target)
-
-              if position >= 0:
-
-                  result["odds_text_found"] = True
-
-                  # 前後5000文字を取得
-                  start = max(0, position - 5000)
-                  end = min(
-                      len(html),
-                      position + 10000
-                  )
-
-                  context = html[start:end]
-
-                  result["context_before"] = html[
-                      start:position
-                  ]
-
-                  result["context_after"] = html[
-                      position + len(target):end
-                  ]
-
-                  # 調査用HTMLとして保存
-                  Path(
-                      "official_odds_context.html"
-                  ).write_text(
-                      context,
-                      encoding="utf-8"
-                  )
-
-                  # 読みやすいテキスト版
-                  Path(
-                      "official_odds_context.txt"
-                  ).write_text(
-                      context,
-                      encoding="utf-8"
-                  )
-
+              for key in keys:
                   print(
-                      "「3連単オッズ」を検出しました"
-                  )
-                  print(
-                      "HTML内の位置:",
-                      position
+                      f"{key} = {odds[key]}"
                   )
 
-                  print("================================")
-                  print("前後のHTML")
-                  print("================================")
-                  print(context)
-
-              else:
-
-                  print(
-                      "「3連単オッズ」が見つかりませんでした"
+              # 120通りなら成功
+              if len(odds) != 120:
+                  raise RuntimeError(
+                      f"オッズ件数が120ではありません: "
+                      f"{len(odds)}"
                   )
+
+              print("")
+              print(
+                  "120通りの3連単オッズ取得成功"
+              )
 
           except Exception as e:
 
               result["error"] = str(e)
 
-              print("取得エラー:", e)
+              print("================================")
+              print("解析エラー")
+              print("================================")
+              print(str(e))
 
           Path(
               "official_odds_test.json"
@@ -165,15 +370,15 @@ jobs:
           )
 
           print("================================")
-          print("Official BOAT RACE HTML Inspection")
-          print("取得時刻:", now.isoformat())
-          print("場コード:", venue)
-          print("レース:", race_no)
+          print("最終結果")
           print("取得成功:", result["downloaded"])
-          print("HTML文字数:", result["html_length"])
           print(
-              "3連単オッズ文字検出:",
-              result["odds_text_found"]
+              "オッズ表:",
+              result["odds_table_found"]
+          )
+          print(
+              "オッズ件数:",
+              result["odds_count"]
           )
           print("エラー:", result["error"])
           print("================================")
@@ -186,17 +391,9 @@ jobs:
 
           git add official_odds_test.json
 
-          if [ -f official_odds_context.html ]; then
-            git add official_odds_context.html
-          fi
-
-          if [ -f official_odds_context.txt ]; then
-            git add official_odds_context.txt
-          fi
-
           if git diff --cached --quiet; then
             echo "変更なし"
           else
-            git commit -m "Inspect official BOAT RACE odds HTML"
+            git commit -m "Test official BOAT RACE odds parser"
             git push
           fi
