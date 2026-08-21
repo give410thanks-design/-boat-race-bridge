@@ -1,14 +1,15 @@
 {
-  "generated_at": "2026-08-22T03:31:12.525115+09:00",
+  "generated_at": "2026-08-22T04:13:15.603739+09:00",
   "url": "https://www.boatrace.jp/owpc/pc/race/odds3t?rno=7&jcd=07&hd=20260821",
   "venue_code": "07",
   "race_no": 7,
   "date": "20260821",
   "downloaded": true,
-  "html_length": 44558,
+  "html_length": 44172,
   "odds_table_found": true,
   "odds_point_count": 120,
   "numeric_odds_count": 120,
+  "combination_count": 0,
   "sample": {
     "1": 16.1,
     "2": 268.4,
@@ -31,6 +32,7 @@
     "19": 157.6,
     "20": 1039.0
   },
+  "odds_by_combination": {},
   "success": true,
   "error": null
 }
