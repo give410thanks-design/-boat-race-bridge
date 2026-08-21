@@ -7,6 +7,7 @@ on:
         description: "場名（例：蒲郡、下関、丸亀）"
         required: true
         default: "蒲郡"
+
       race_no:
         description: "レース番号（例：6）"
         required: true
@@ -23,21 +24,41 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+
+      # ==================================================
+      # Checkout
+      # ==================================================
+
       - name: Checkout
         uses: actions/checkout@v4
+
+
+      # ==================================================
+      # BOAT RACE CSV + 公式3連単オッズ取得
+      # ==================================================
 
       - name: Get BOAT RACE preview data
         env:
           VENUE: ${{ github.event.inputs.venue }}
           RACE_NO: ${{ github.event.inputs.race_no }}
+
         run: |
+
           python - <<'PY'
+
           import csv
           import json
           import urllib.request
           import os
+          import re
+
           from datetime import datetime, timezone, timedelta
           from pathlib import Path
+
+
+          # ==================================================
+          # 日本時間
+          # ==================================================
 
           JST = timezone(timedelta(hours=9))
           now = datetime.now(JST)
@@ -45,7 +66,11 @@ jobs:
           date_path = now.strftime("%Y/%m/%d")
           date_value = now.strftime("%Y-%m-%d")
 
+
+          # ==================================================
           # BOAT RACE 場コード
+          # ==================================================
+
           venues = {
               "桐生": "01",
               "戸田": "02",
@@ -73,12 +98,18 @@ jobs:
               "大村": "24"
           }
 
+
+          # ==================================================
+          # CSVデータ
+          # ==================================================
+
           sources = {
               "tkz": "exhibition_time",
               "stt": "start_exhibition",
               "sui": "weather",
               "od3": "odds_3tan",
           }
+
 
           result = {
               "generated_at": now.isoformat(),
@@ -88,6 +119,7 @@ jobs:
               "errors": {}
           }
 
+
           status = {
               "generated_at": now.isoformat(),
               "date": date_value,
@@ -95,7 +127,11 @@ jobs:
               "total_races": 0
           }
 
-          # 全レースデータを取得
+
+          # ==================================================
+          # 全レースCSVデータ取得
+          # ==================================================
+
           for source, name in sources.items():
 
               url = (
@@ -104,29 +140,48 @@ jobs:
               )
 
               try:
-                  with urllib.request.urlopen(url, timeout=30) as response:
-                      text = response.read().decode("utf-8-sig")
 
-                  rows = list(csv.DictReader(text.splitlines()))
+                  with urllib.request.urlopen(
+                      url,
+                      timeout=30
+                  ) as response:
+
+                      text = response.read().decode(
+                          "utf-8-sig"
+                      )
+
+
+                  rows = list(
+                      csv.DictReader(
+                          text.splitlines()
+                      )
+                  )
+
 
                   valid_rows = 0
+
 
                   for row in rows:
 
                       if row.get("レース日") != date_value:
                           continue
 
+
                       race_code = row.get("レースコード")
 
                       if not race_code:
                           continue
 
+
                       valid_rows += 1
+
 
                       if race_code not in result["races"]:
                           result["races"][race_code] = {}
 
+
                       result["races"][race_code][name] = row
+
 
                   status["sources"][source] = {
                       "name": name,
@@ -135,6 +190,7 @@ jobs:
                       "rows": len(rows),
                       "today_rows": valid_rows
                   }
+
 
               except Exception as e:
 
@@ -147,14 +203,27 @@ jobs:
                       "error": str(e)
                   }
 
-          status["total_races"] = len(result["races"])
 
-          # ------------------------------------------------
-          # 指定レースを作成
-          # ------------------------------------------------
+          status["total_races"] = len(
+              result["races"]
+          )
 
-          venue = os.environ.get("VENUE", "").strip()
-          race_no = os.environ.get("RACE_NO", "").strip()
+
+          # ==================================================
+          # 指定レース
+          # ==================================================
+
+          venue = os.environ.get(
+              "VENUE",
+              ""
+          ).strip()
+
+
+          race_no = os.environ.get(
+              "RACE_NO",
+              ""
+          ).strip()
+
 
           target = {
               "generated_at": now.isoformat(),
@@ -164,23 +233,41 @@ jobs:
               "race_code": None,
               "exists": False,
               "data": {},
+              "official_odds": {},
+              "official_odds_count": 0,
+              "official_odds_success": False,
+              "official_odds_error": None,
               "error": None
           }
 
-          # 手動実行の場合だけ指定レースを作る
+
+          # ==================================================
+          # 指定レース作成
+          # ==================================================
+
           if venue and race_no:
 
               venue_code = venues.get(venue)
 
+
               if venue_code is None:
-                  target["error"] = "場名が認識できません: " + venue
+
+                  target["error"] = (
+                      "場名が認識できません: "
+                      + venue
+                  )
+
 
               else:
+
                   try:
+
                       race_number = int(race_no)
+
 
                       if race_number < 1 or race_number > 12:
                           raise ValueError
+
 
                       race_code = (
                           date_value.replace("-", "")
@@ -188,66 +275,899 @@ jobs:
                           + f"{race_number:02d}"
                       )
 
+
                       target["race_code"] = race_code
 
+
                       if race_code in result["races"]:
+
                           target["exists"] = True
-                          target["data"] = result["races"][race_code]
+
+                          target["data"] = (
+                              result["races"][race_code]
+                          )
+
                       else:
-                          target["error"] = "指定レースのデータがありません"
+
+                          target["error"] = (
+                              "指定レースのデータがありません"
+                          )
+
 
                   except ValueError:
-                      target["error"] = "レース番号は1〜12で指定してください"
 
+                      target["error"] = (
+                          "レース番号は1〜12で指定してください"
+                      )
+
+
+          # ==================================================
+          # 公式BOAT RACE 3連単オッズ
+          # ==================================================
+
+          if (
+              target["exists"]
+              and venue
+              and race_no
+          ):
+
+              try:
+
+                  race_number = int(race_no)
+
+
+                  official_url = (
+                      "https://www.boatrace.jp/owpc/pc/race/odds3t"
+                      f"?rno={race_number}"
+                      f"&jcd={venue_code}"
+                      f"&hd={date_value.replace('-', '')}"
+                  )
+
+
+                  print("")
+                  print("================================")
+                  print("公式BOAT RACE 3連単オッズ")
+                  print("================================")
+                  print("URL:", official_url)
+
+
+                  request = urllib.request.Request(
+
+                      official_url,
+
+                      headers={
+                          "User-Agent":
+                          (
+                              "Mozilla/5.0 "
+                              "(Windows NT 10.0; Win64; x64) "
+                              "AppleWebKit/537.36 "
+                              "(KHTML, like Gecko) "
+                              "Chrome/131.0.0.0 "
+                              "Safari/537.36"
+                          )
+                      }
+                  )
+
+
+                  with urllib.request.urlopen(
+                      request,
+                      timeout=30
+                  ) as response:
+
+                      html = response.read().decode(
+                          "utf-8",
+                          errors="replace"
+                      )
+
+
+                  print(
+                      "HTML文字数:",
+                      len(html)
+                  )
+
+
+                  # --------------------------------------------------
+                  # 3連単オッズ表確認
+                  # --------------------------------------------------
+
+                  if "3連単オッズ" not in html:
+
+                      raise RuntimeError(
+                          "公式3連単オッズ表が見つかりません"
+                      )
+
+
+                  # --------------------------------------------------
+                  # 公式HTML保存
+                  # --------------------------------------------------
+
+                  Path(
+                      "official_odds.context.html"
+                  ).write_text(
+
+                      html,
+
+                      encoding="utf-8"
+                  )
+
+
+                  # --------------------------------------------------
+                  # oddsPoint取得
+                  # --------------------------------------------------
+
+                  pattern = re.compile(
+
+                      r'<td[^>]*'
+                      r'class=["\'][^"\']*'
+                      r'oddsPoint'
+                      r'[^"\']*["\'][^>]*>'
+                      r'\s*([^<]+?)\s*'
+                      r'</td>',
+
+                      re.IGNORECASE
+                  )
+
+
+                  matches = pattern.findall(
+                      html
+                  )
+
+
+                  odds_values = []
+
+
+                  for value in matches:
+
+                      value = value.strip()
+
+                      value = value.replace(
+                          ",",
+                          ""
+                      )
+
+
+                      try:
+
+                          odds_values.append(
+                              float(value)
+                          )
+
+                      except ValueError:
+
+                          pass
+
+
+                  print(
+                      "oddsPoint:",
+                      len(matches)
+                  )
+
+                  print(
+                      "数値オッズ:",
+                      len(odds_values)
+                  )
+
+
+                  # --------------------------------------------------
+                  # 公式オッズ組み合わせ取得
+                  #
+                  # HTMLの3連単表は、
+                  #
+                  # 1-2-3
+                  # 1-2-4
+                  # 1-2-5
+                  #
+                  # のように、先頭艇ごとの6ブロック構造。
+                  #
+                  # 各ブロックは4行、
+                  # 各行に6つの「2着・3着・オッズ」
+                  # の組があります。
+                  # --------------------------------------------------
+
+                  odds_by_combination = {}
+
+
+                  # 3連単表本体を探す
+                  table_match = re.search(
+
+                      r'<div[^>]*class=["\'][^"\']*table1[^"\']*["\'][^>]*>'
+                      r'\s*<table[^>]*>'
+                      r'(.*?)'
+                      r'</table>',
+
+                      html,
+
+                      re.IGNORECASE |
+                      re.DOTALL
+                  )
+
+
+                  if not table_match:
+
+                      raise RuntimeError(
+                          "3連単オッズテーブルを取得できません"
+                      )
+
+
+                  table_html = table_match.group(1)
+
+
+                  # --------------------------------------------------
+                  # tbodyを取得
+                  # --------------------------------------------------
+
+                  tbody_match = re.search(
+
+                      r'<tbody[^>]*>'
+                      r'(.*?)'
+                      r'</tbody>',
+
+                      table_html,
+
+                      re.IGNORECASE |
+                      re.DOTALL
+                  )
+
+
+                  if not tbody_match:
+
+                      raise RuntimeError(
+                          "3連単オッズtbodyを取得できません"
+                      )
+
+
+                  tbody = tbody_match.group(1)
+
+
+                  # --------------------------------------------------
+                  # 行取得
+                  # --------------------------------------------------
+
+                  rows_html = re.findall(
+
+                      r'<tr[^>]*>'
+                      r'(.*?)'
+                      r'</tr>',
+
+                      tbody,
+
+                      re.IGNORECASE |
+                      re.DOTALL
+                  )
+
+
+                  # --------------------------------------------------
+                  # 3連単表の6艇ブロック
+                  # --------------------------------------------------
+
+                  current_first = None
+
+                  for row_html in rows_html:
+
+                      # rowspan付きの2着艇
+                      rowspan_matches = re.findall(
+
+                          r'<td[^>]*rowspan=["\']4["\'][^>]*>'
+                          r'\s*([1-6])\s*'
+                          r'</td>',
+
+                          row_html,
+
+                          re.IGNORECASE
+                      )
+
+
+                      # 1行内の通常セル
+                      cells = re.findall(
+
+                          r'<td[^>]*>'
+                          r'\s*(.*?)\s*'
+                          r'</td>',
+
+                          row_html,
+
+                          re.IGNORECASE |
+                          re.DOTALL
+                      )
+
+
+                      # HTMLタグ除去
+                      clean_cells = []
+
+                      for cell in cells:
+
+                          cell = re.sub(
+                              r'<[^>]+>',
+                              '',
+                              cell
+                          )
+
+                          cell = cell.strip()
+
+                          clean_cells.append(cell)
+
+
+                      # ------------------------------------------------
+                      # 1行目には各ブロックの2着艇が入る
+                      # ------------------------------------------------
+
+                      if rowspan_matches:
+
+                          second_boats = [
+                              int(x)
+                              for x in rowspan_matches
+                          ]
+
+                      else:
+
+                          second_boats = []
+
+
+                      # ------------------------------------------------
+                      # oddsPointだけ抽出
+                      # ------------------------------------------------
+
+                      row_odds = re.findall(
+
+                          r'<td[^>]*class=["\'][^"\']*oddsPoint[^"\']*["\'][^>]*>'
+                          r'\s*([^<]+?)\s*'
+                          r'</td>',
+
+                          row_html,
+
+                          re.IGNORECASE
+                      )
+
+
+                      # ------------------------------------------------
+                      # 3着艇とオッズを取得
+                      # ------------------------------------------------
+
+                      if row_odds:
+
+                          # この行のoddsPoint数
+                          for idx, odds_text in enumerate(
+                              row_odds
+                          ):
+
+                              try:
+
+                                  odds = float(
+                                      odds_text.strip().replace(",", "")
+                                  )
+
+                              except ValueError:
+
+                                  continue
+
+
+                              # 3着艇
+                              third_candidates = re.findall(
+
+                                  r'<td[^>]*class=["\'][^"\']*is-boatColor'
+                                  r'\d+[^"\']*["\'][^>]*>'
+                                  r'\s*([1-6])\s*'
+                                  r'</td>',
+
+                                  row_html,
+
+                                  re.IGNORECASE
+                              )
+
+
+                              if idx >= len(third_candidates):
+                                  continue
+
+
+                              third = int(
+                                  third_candidates[idx]
+                              )
+
+
+                              # ------------------------------------------------
+                              # 2着艇
+                              #
+                              # 1行目はrowspanから取得。
+                              # 2〜4行目は直前の4行ブロックの
+                              # 2着艇を引き継ぐ。
+                              # ------------------------------------------------
+
+                              if second_boats:
+
+                                  if idx < len(second_boats):
+
+                                      second = second_boats[idx]
+
+                                  else:
+
+                                      continue
+
+                              else:
+
+                                  # 後続行では現在のブロックから取得
+                                  if current_first is None:
+                                      continue
+
+                                  # 後続行の2着艇は
+                                  # 行内のboatColorセルから推定する
+                                  second_candidates = re.findall(
+
+                                      r'<td[^>]*class=["\'][^"\']*is-boatColor'
+                                      r'\d+[^"\']*["\'][^>]*>'
+                                      r'\s*([1-6])\s*'
+                                      r'</td>',
+
+                                      row_html,
+
+                                      re.IGNORECASE
+                                  )
+
+                                  if idx >= len(second_candidates):
+                                      continue
+
+                                  # 最初の通常艇セルが2着
+                                  second = int(
+                                      second_candidates[idx]
+                                  )
+
+
+                              first = current_first
+
+
+                              # 同じ艇は3連単として不正
+                              if (
+                                  first == second
+                                  or first == third
+                                  or second == third
+                              ):
+                                  continue
+
+
+                              combination = (
+                                  f"{first}-{second}-{third}"
+                              )
+
+
+                              odds_by_combination[
+                                  combination
+                              ] = odds
+
+
+                      # ------------------------------------------------
+                      # 先頭艇を更新
+                      # ------------------------------------------------
+
+                      if rowspan_matches:
+
+                          # 公式表の1行目は
+                          # ヘッダー順 1〜6 に対応
+                          #
+                          # ここでは6列ブロックを順番に処理するため
+                          # current_firstは別管理する。
+                          pass
+
+
+                  # --------------------------------------------------
+                  # 上記のHTML構造を確実に処理するため、
+                  # oddsPointの順番を公式表の列構造に合わせて再構築
+                  # --------------------------------------------------
+
+                  odds_by_combination = {}
+
+
+                  # --------------------------------------------------
+                  # テーブルのtheadから先頭艇1〜6を確認
+                  # --------------------------------------------------
+
+                  header_match = re.search(
+
+                      r'<thead[^>]*>'
+                      r'(.*?)'
+                      r'</thead>',
+
+                      table_html,
+
+                      re.IGNORECASE |
+                      re.DOTALL
+                  )
+
+
+                  if not header_match:
+
+                      raise RuntimeError(
+                          "3連単オッズのヘッダーが見つかりません"
+                      )
+
+
+                  header_boats = [
+                      int(x)
+                      for x in re.findall(
+                          r'<th[^>]*is-boatColor\d[^>]*>'
+                          r'\s*([1-6])\s*'
+                          r'</th>',
+                          header_match.group(1),
+                          re.IGNORECASE
+                      )
+                  ]
+
+
+                  if header_boats != [1, 2, 3, 4, 5, 6]:
+
+                      raise RuntimeError(
+                          "3連単オッズの艇順を確認できません: "
+                          + str(header_boats)
+                      )
+
+
+                  # --------------------------------------------------
+                  # tbodyを4行ずつ、6ブロックとして処理
+                  # --------------------------------------------------
+
+                  # 120個のoddsPointは公式HTMLの表示順。
+                  #
+                  # 各4行ブロックについて、
+                  # 1列目 = 1着1
+                  # 2列目 = 1着2
+                  # ...
+                  #
+                  # 各列のrowspan値が2着、
+                  # その右隣の数字が3着。
+                  # --------------------------------------------------
+
+                  all_rows = re.findall(
+
+                      r'<tr[^>]*>'
+                      r'(.*?)'
+                      r'</tr>',
+
+                      tbody,
+
+                      re.IGNORECASE |
+                      re.DOTALL
+                  )
+
+
+                  # 4行ずつ処理
+                  for block_start in range(
+                      0,
+                      len(all_rows),
+                      4
+                  ):
+
+                      block_rows = all_rows[
+                          block_start:block_start + 4
+                      ]
+
+
+                      if len(block_rows) != 4:
+                          continue
+
+
+                      # 最初の行から6列の2着艇を取得
+                      first_row = block_rows[0]
+
+
+                      second_boats = re.findall(
+
+                          r'<td[^>]*rowspan=["\']4["\'][^>]*>'
+                          r'\s*([1-6])\s*'
+                          r'</td>',
+
+                          first_row,
+
+                          re.IGNORECASE
+                      )
+
+
+                      if len(second_boats) != 6:
+                          continue
+
+
+                      second_boats = [
+                          int(x)
+                          for x in second_boats
+                      ]
+
+
+                      # 各行の3着艇 + オッズ
+                      for row_index, row_html in enumerate(
+                          block_rows
+                      ):
+
+                          third_cells = re.findall(
+
+                              r'<td[^>]*is-boatColor\d+[^>]*>'
+                              r'\s*([1-6])\s*'
+                              r'</td>',
+
+                              row_html,
+
+                              re.IGNORECASE
+                          )
+
+
+                          odds_cells = re.findall(
+
+                              r'<td[^>]*class=["\'][^"\']*oddsPoint[^"\']*["\'][^>]*>'
+                              r'\s*([^<]+?)\s*'
+                              r'</td>',
+
+                              row_html,
+
+                              re.IGNORECASE
+                          )
+
+
+                          if len(third_cells) != 6:
+                              continue
+
+
+                          if len(odds_cells) != 6:
+                              continue
+
+
+                          for column in range(6):
+
+                              first = header_boats[column]
+
+                              second = second_boats[column]
+
+                              third = int(
+                                  third_cells[column]
+                              )
+
+
+                              try:
+
+                                  odds = float(
+                                      odds_cells[column]
+                                      .strip()
+                                      .replace(",", "")
+                                  )
+
+                              except ValueError:
+
+                                  continue
+
+
+                              if (
+                                  first == second
+                                  or first == third
+                                  or second == third
+                              ):
+                                  continue
+
+
+                              combination = (
+                                  f"{first}-{second}-{third}"
+                              )
+
+
+                              odds_by_combination[
+                                  combination
+                              ] = odds
+
+
+                  # --------------------------------------------------
+                  # 結果
+                  # --------------------------------------------------
+
+                  target[
+                      "official_odds"
+                  ] = odds_by_combination
+
+
+                  target[
+                      "official_odds_count"
+                  ] = len(
+                      odds_by_combination
+                  )
+
+
+                  if len(odds_by_combination) != 120:
+
+                      raise RuntimeError(
+
+                          "公式3連単オッズを120通り取得できませんでした: "
+                          + str(
+                              len(odds_by_combination)
+                          )
+                      )
+
+
+                  target[
+                      "official_odds_success"
+                  ] = True
+
+
+                  print(
+                      "公式3連単オッズ:",
+                      len(odds_by_combination),
+                      "通り"
+                  )
+
+
+                  print(
+                      "確認 1-2-3:",
+                      odds_by_combination.get(
+                          "1-2-3"
+                      )
+                  )
+
+
+                  print(
+                      "確認 1-2-4:",
+                      odds_by_combination.get(
+                          "1-2-4"
+                      )
+                  )
+
+
+                  print(
+                      "確認 1-2-5:",
+                      odds_by_combination.get(
+                          "1-2-5"
+                      )
+                  )
+
+
+                  print("================================")
+
+
+              except Exception as e:
+
+                  target[
+                      "official_odds_error"
+                  ] = str(e)
+
+
+                  print("")
+                  print("================================")
+                  print("公式オッズ取得失敗")
+                  print("エラー:", e)
+                  print("================================")
+
+
+          # ==================================================
           # ファイル保存
-          Path("latest.json").write_text(
+          # ==================================================
+
+          Path(
+              "latest.json"
+          ).write_text(
+
               json.dumps(
                   result,
                   ensure_ascii=False,
                   indent=2
               ),
+
               encoding="utf-8"
           )
 
-          Path("status.json").write_text(
+
+          Path(
+              "status.json"
+          ).write_text(
+
               json.dumps(
                   status,
                   ensure_ascii=False,
                   indent=2
               ),
+
               encoding="utf-8"
           )
 
-          Path("target.json").write_text(
+
+          Path(
+              "target.json"
+          ).write_text(
+
               json.dumps(
                   target,
                   ensure_ascii=False,
                   indent=2
               ),
+
               encoding="utf-8"
           )
 
+
+          # ==================================================
+          # 最終表示
+          # ==================================================
+
+          print("")
           print("================================")
           print("BOAT RACE Bridge")
-          print("取得時刻:", now.isoformat())
-          print("総レース数:", len(result["races"]))
-          print("指定場:", venue)
-          print("指定R:", race_no)
-          print("レースコード:", target["race_code"])
-          print("指定レース存在:", target["exists"])
-          print("エラー:", target["error"])
           print("================================")
+
+          print(
+              "取得時刻:",
+              now.isoformat()
+          )
+
+          print(
+              "総レース数:",
+              len(result["races"])
+          )
+
+          print(
+              "指定場:",
+              venue
+          )
+
+          print(
+              "指定R:",
+              race_no
+          )
+
+          print(
+              "レースコード:",
+              target["race_code"]
+          )
+
+          print(
+              "指定レース存在:",
+              target["exists"]
+          )
+
+          print(
+              "公式オッズ数:",
+              target["official_odds_count"]
+          )
+
+          print(
+              "公式オッズ成功:",
+              target["official_odds_success"]
+          )
+
+          print(
+              "エラー:",
+              target["error"]
+          )
+
+          print(
+              "公式オッズエラー:",
+              target["official_odds_error"]
+          )
+
+          print("================================")
+
+          PY
+
+
+      # ==================================================
+      # 保存
+      # ==================================================
 
       - name: Save data
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          git add latest.json status.json target.json
+          git config user.name \
+            "github-actions[bot]"
+
+          git config user.email \
+            "41898282+github-actions[bot]@users.noreply.github.com"
+
+
+          git add \
+            latest.json \
+            status.json \
+            target.json \
+            official_odds.context.html
+
 
           if git diff --cached --quiet; then
+
             echo "変更なし"
+
           else
-            git commit -m "Update BOAT RACE data"
+
+            git commit \
+              -m "Update BOAT RACE data with official odds"
+
             git push
+
           fi
