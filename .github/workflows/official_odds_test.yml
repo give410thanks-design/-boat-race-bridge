@@ -28,7 +28,7 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install beautifulsoup4
 
-      - name: Get and parse official BOAT RACE odds
+      - name: Get official BOAT RACE odds HTML structure
         env:
           VENUE_CODE: ${{ github.event.inputs.venue_code }}
           RACE_NO: ${{ github.event.inputs.race_no }}
@@ -36,7 +36,6 @@ jobs:
           python - <<'PY'
           import json
           import os
-          import re
           import urllib.request
           from datetime import datetime, timezone, timedelta
           from pathlib import Path
@@ -77,16 +76,15 @@ jobs:
               "downloaded": False,
               "html_length": 0,
               "odds_table_found": False,
-              "odds_count": 0,
-              "odds_sample": {},
-              "odds": {},
-              "parse_error": None,
+              "table_count": 0,
+              "target_table_html_length": 0,
+              "target_table_text": "",
               "error": None
           }
 
           try:
               # --------------------------------
-              # 1. HTML取得
+              # 1. 公式HTML取得
               # --------------------------------
               with urllib.request.urlopen(request, timeout=30) as response:
                   html = response.read().decode("utf-8", errors="replace")
@@ -98,135 +96,87 @@ jobs:
               print("HTML文字数:", len(html))
 
               # --------------------------------
-              # 2. BeautifulSoupでHTML解析
+              # 2. HTML解析
               # --------------------------------
               soup = BeautifulSoup(html, "html.parser")
 
+              tables = soup.find_all("table")
+              result["table_count"] = len(tables)
+
+              print("table総数:", len(tables))
+
               target_table = None
 
-              for table in soup.find_all("table"):
+              # 「3連単オッズ」を含むtableを探す
+              for index, table in enumerate(tables):
                   text = table.get_text(" ", strip=True)
 
                   if "3連単オッズ" in text:
                       target_table = table
+
+                      print("3連単オッズ表を発見")
+                      print("table番号:", index)
+
                       break
 
-              # ページによっては見出しとtableが分かれているため、
-              # 「1 2 3」等の組み合わせを含むtableも候補にする
-              if target_table is None:
-                  for table in soup.find_all("table"):
-                      text = table.get_text(" ", strip=True)
+              # --------------------------------
+              # 3. 対象tableを保存
+              # --------------------------------
+              if target_table is not None:
 
-                      if (
-                          len(text) > 100
-                          and "1" in text
-                          and "2" in text
-                          and "3" in text
-                      ):
-                          target_table = table
-                          break
+                  result["odds_table_found"] = True
 
-              if target_table is None:
-                  result["parse_error"] = "3連単オッズ表のtableを発見できませんでした"
-                  print("3連単オッズ表を発見できませんでした")
+                  table_html = str(target_table)
+                  table_text = target_table.get_text(
+                      " | ",
+                      strip=True
+                  )
+
+                  result["target_table_html_length"] = len(table_html)
+                  result["target_table_text"] = table_text
+
+                  Path(
+                      "official_odds_table.html"
+                  ).write_text(
+                      table_html,
+                      encoding="utf-8"
+                  )
+
+                  Path(
+                      "official_odds_table.txt"
+                  ).write_text(
+                      table_text,
+                      encoding="utf-8"
+                  )
+
+                  print(
+                      "対象table HTML文字数:",
+                      len(table_html)
+                  )
+
+                  print("================================")
+                  print("対象tableのテキスト")
+                  print("================================")
+                  print(table_text[:10000])
 
               else:
-                  result["odds_table_found"] = True
-                  print("3連単オッズ表を発見しました")
-
-                  odds = {}
-
-                  # --------------------------------
-                  # 3. table内のセルを解析
-                  # --------------------------------
-                  for row in target_table.find_all("tr"):
-
-                      cells = row.find_all(["td", "th"])
-
-                      for cell in cells:
-
-                          # セル内のテキストを正規化
-                          text = cell.get_text(" ", strip=True)
-
-                          if not text:
-                              continue
-
-                          # 数字を抽出
-                          tokens = re.findall(
-                              r'(?<![\d.])\d{1,4}(?:\.\d)?(?![\d.])',
-                              text
-                          )
-
-                          # 3連単の1セルは基本的に
-                          # 「1着 2着 オッズ」
-                          # の3要素
-                          if len(tokens) < 3:
-                              continue
-
-                          # 最初の2つが艇番
-                          first = tokens[0]
-                          second = tokens[1]
-
-                          # 1～6以外は除外
-                          if first not in "123456":
-                              continue
-
-                          if second not in "123456":
-                              continue
-
-                          # 3つ目をオッズ候補とする
-                          odds_value = tokens[2]
-
-                          try:
-                              odds_float = float(odds_value)
-                          except ValueError:
-                              continue
-
-                          # オッズは0以下を除外
-                          if odds_float <= 0:
-                              continue
-
-                          # 3着候補は同じセルの構造だけでは
-                          # HTMLによって分かりにくいため、
-                          # セル内テキストをさらに確認
-                          remaining = tokens[2:]
-
-                          # このページの公式表では
-                          # 「2 3 24.2」のように
-                          # 1着・2着・オッズが並ぶ。
-                          #
-                          # 3着については、同じ行の構造から
-                          # 後段で組み立てる。
-                          #
-                          # まず生セルを記録。
-                          key = f"{first}-{second}"
-
-                          if key not in odds:
-                              odds[key] = odds_float
-
-                  # --------------------------------
-                  # 4. 生データ確認
-                  # --------------------------------
-                  result["odds"] = odds
-                  result["odds_count"] = len(odds)
-
-                  sample_keys = list(odds.keys())[:20]
-
-                  result["odds_sample"] = {
-                      key: odds[key]
-                      for key in sample_keys
-                  }
-
-                  print("抽出したオッズ件数:", len(odds))
+                  print(
+                      "3連単オッズ表を含むtableが"
+                      "見つかりませんでした"
+                  )
 
           except Exception as e:
+
               result["error"] = str(e)
-              print("取得・解析エラー:", e)
+
+              print("エラー:", e)
 
           # --------------------------------
-          # JSON保存
+          # 4. JSON保存
           # --------------------------------
-          Path("official_odds_test.json").write_text(
+          Path(
+              "official_odds_test.json"
+          ).write_text(
               json.dumps(
                   result,
                   ensure_ascii=False,
@@ -236,24 +186,20 @@ jobs:
           )
 
           print("================================")
-          print("Official BOAT RACE Odds Parse Test")
+          print("Official BOAT RACE HTML Structure Test")
           print("取得時刻:", now.isoformat())
           print("場コード:", venue)
           print("レース:", race_no)
           print("取得成功:", result["downloaded"])
           print("HTML文字数:", result["html_length"])
-          print("オッズ表検出:", result["odds_table_found"])
-          print("抽出件数:", result["odds_count"])
-          print("解析エラー:", result["parse_error"])
-          print("取得エラー:", result["error"])
+          print("table総数:", result["table_count"])
+          print("オッズ表:", result["odds_table_found"])
+          print(
+              "対象table HTML文字数:",
+              result["target_table_html_length"]
+          )
+          print("エラー:", result["error"])
           print("================================")
-
-          print("オッズサンプル:")
-          print(json.dumps(
-              result["odds_sample"],
-              ensure_ascii=False,
-              indent=2
-          ))
           PY
 
       - name: Save test result
@@ -262,10 +208,12 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
           git add official_odds_test.json
+          git add official_odds_table.html
+          git add official_odds_table.txt
 
           if git diff --cached --quiet; then
             echo "変更なし"
           else
-            git commit -m "Test official BOAT RACE odds parser"
+            git commit -m "Inspect official BOAT RACE odds HTML structure"
             git push
           fi
