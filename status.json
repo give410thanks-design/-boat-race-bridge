@@ -1,35 +1,35 @@
 {
-  "generated_at": "2026-08-21T17:56:23.986723+09:00",
+  "generated_at": "2026-08-21T18:22:06.844048+09:00",
   "date": "2026-08-21",
   "sources": {
     "tkz": {
       "name": "exhibition_time",
       "url": "https://boatracecsv.github.io/data/previews/tkz/2026/08/21.csv",
       "downloaded": true,
-      "rows": 116,
-      "today_rows": 116
+      "rows": 119,
+      "today_rows": 119
     },
     "stt": {
       "name": "start_exhibition",
       "url": "https://boatracecsv.github.io/data/previews/stt/2026/08/21.csv",
       "downloaded": true,
-      "rows": 116,
-      "today_rows": 116
+      "rows": 119,
+      "today_rows": 119
     },
     "sui": {
       "name": "weather",
       "url": "https://boatracecsv.github.io/data/previews/sui/2026/08/21.csv",
       "downloaded": true,
-      "rows": 116,
-      "today_rows": 116
+      "rows": 119,
+      "today_rows": 119
     },
     "od3": {
       "name": "odds_3tan",
       "url": "https://boatracecsv.github.io/data/previews/od3/2026/08/21.csv",
       "downloaded": true,
-      "rows": 116,
-      "today_rows": 116
+      "rows": 119,
+      "today_rows": 119
     }
   },
-  "total_races": 116
+  "total_races": 119
 }
