@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-08-22T04:17:27.494489+09:00",
+  "generated_at": "2026-08-22T04:56:12.091575+09:00",
   "date": "2026-08-22",
   "sources": {
     "tkz": {
@@ -18,7 +18,7 @@
       "name": "weather",
       "url": "https://boatracecsv.github.io/data/previews/sui/2026/08/22.csv",
       "downloaded": false,
-      "error": "HTTP Error 404: Not Found"
+      "error": "HTTP Error 503: Service Unavailable"
     },
     "od3": {
       "name": "odds_3tan",

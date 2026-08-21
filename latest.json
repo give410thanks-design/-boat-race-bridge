@@ -1,12 +1,12 @@
 {
-  "generated_at": "2026-08-22T04:17:27.494489+09:00",
+  "generated_at": "2026-08-22T04:56:12.091575+09:00",
   "date": "2026-08-22",
   "source": "BoatraceCSV",
   "races": {},
   "errors": {
     "tkz": "HTTP Error 404: Not Found",
     "stt": "HTTP Error 404: Not Found",
-    "sui": "HTTP Error 404: Not Found",
+    "sui": "HTTP Error 503: Service Unavailable",
     "od3": "HTTP Error 404: Not Found"
   }
 }
