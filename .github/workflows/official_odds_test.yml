@@ -182,7 +182,13 @@ jobs:
               "numeric_odds_count":
                   0,
 
+              "combination_count":
+                  0,
+
               "sample":
+                  {},
+
+              "odds_by_combination":
                   {},
 
               "success":
@@ -256,21 +262,21 @@ jobs:
               # 3連単オッズエリア確認
               # ==============================
 
-              if "3連単オッズ" in html:
+              if "3連単オッズ" not in html:
 
-                  result[
-                      "odds_table_found"
-                  ] = True
-
-                  print(
-                      "3連単オッズエリア: OK"
+                  raise RuntimeError(
+                      "3連単オッズエリアが見つかりません"
                   )
 
-              else:
 
-                  print(
-                      "3連単オッズエリア: 見つかりません"
-                  )
+              result[
+                  "odds_table_found"
+              ] = True
+
+
+              print(
+                  "3連単オッズエリア: OK"
+              )
 
 
               # ==============================
@@ -352,10 +358,32 @@ jobs:
 
 
               # ==============================
-              # サンプル
+              # 120個確認
               # ==============================
 
-              result["sample"] = {
+              if len(odds_values) != 120:
+
+                  raise RuntimeError(
+
+                      "3連単オッズを120個取得できませんでした: "
+                      f"{len(odds_values)}個"
+
+                  )
+
+
+              # ==============================
+              # 重要
+              #
+              # 今回はまず公式HTMLの並び順を
+              # 壊さず確認する。
+              #
+              # 買い目との完全な紐付けは、
+              # このテスト結果を確認してから行う。
+              # ==============================
+
+              result[
+                  "sample"
+              ] = {
 
                   str(index + 1):
                       value
@@ -368,41 +396,23 @@ jobs:
               }
 
 
-              print("--------------------------------")
-
-              print(
-                  "サンプル:"
-              )
-
-              print(
-
-                  json.dumps(
-
-                      result["sample"],
-
-                      ensure_ascii=False,
-
-                      indent=2
-
-                  )
-
-              )
-
-              print("--------------------------------")
-
-
               # ==============================
-              # 120個確認
+              # 現段階では
+              # odds_by_combination は作らない
+              #
+              # 理由：
+              # HTMLのrowspan構造を正しく解析してから
+              # 買い目との対応を確定するため。
               # ==============================
 
-              if len(odds_values) != 120:
+              result[
+                  "combination_count"
+              ] = 0
 
-                  raise RuntimeError(
 
-                      "3連単オッズを120個取得できませんでした: "
-                      f"{len(odds_values)}個"
-
-                  )
+              result[
+                  "odds_by_combination"
+              ] = {}
 
 
               # ==============================
@@ -427,6 +437,28 @@ jobs:
               )
 
               print("================================")
+
+
+              print("")
+
+              print(
+                  "先頭20個:"
+              )
+
+
+              print(
+
+                  json.dumps(
+
+                      result["sample"],
+
+                      ensure_ascii=False,
+
+                      indent=2
+
+                  )
+
+              )
 
 
           except Exception as e:
@@ -528,6 +560,7 @@ jobs:
 
           import json
 
+
           with open(
               "official_odds_test.json",
               encoding="utf-8"
@@ -579,6 +612,22 @@ jobs:
 
               raise SystemExit(
                   "Official Odds Test FAILED"
+              )
+
+
+          if result["odds_point_count"] != 120:
+
+              raise SystemExit(
+                  "Official Odds Test FAILED: "
+                  "oddsPointが120ではありません"
+              )
+
+
+          if result["numeric_odds_count"] != 120:
+
+              raise SystemExit(
+                  "Official Odds Test FAILED: "
+                  "数値オッズが120ではありません"
               )
 
 
