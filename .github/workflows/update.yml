@@ -2,6 +2,16 @@ name: BOAT RACE Bridge Test
 
 on:
   workflow_dispatch:
+    inputs:
+      venue:
+        description: "場名（例：蒲郡、下関、丸亀）"
+        required: true
+        default: "蒲郡"
+      race_no:
+        description: "レース番号（例：6）"
+        required: true
+        default: "6"
+
   schedule:
     - cron: "*/5 * * * *"
 
@@ -17,11 +27,15 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Get BOAT RACE preview data
+        env:
+          VENUE: ${{ github.event.inputs.venue }}
+          RACE_NO: ${{ github.event.inputs.race_no }}
         run: |
           python - <<'PY'
           import csv
           import json
           import urllib.request
+          import os
           from datetime import datetime, timezone, timedelta
           from pathlib import Path
 
@@ -30,6 +44,34 @@ jobs:
 
           date_path = now.strftime("%Y/%m/%d")
           date_value = now.strftime("%Y-%m-%d")
+
+          # BOAT RACE 場コード
+          venues = {
+              "桐生": "01",
+              "戸田": "02",
+              "江戸川": "03",
+              "平和島": "04",
+              "多摩川": "05",
+              "浜名湖": "06",
+              "蒲郡": "07",
+              "常滑": "08",
+              "津": "09",
+              "三国": "10",
+              "びわこ": "11",
+              "住之江": "12",
+              "尼崎": "13",
+              "鳴門": "14",
+              "丸亀": "15",
+              "児島": "16",
+              "宮島": "17",
+              "徳山": "18",
+              "下関": "19",
+              "若松": "20",
+              "芦屋": "21",
+              "福岡": "22",
+              "唐津": "23",
+              "大村": "24"
+          }
 
           sources = {
               "tkz": "exhibition_time",
@@ -53,6 +95,7 @@ jobs:
               "total_races": 0
           }
 
+          # 全レースデータを取得
           for source, name in sources.items():
 
               url = (
@@ -106,18 +149,57 @@ jobs:
 
           status["total_races"] = len(result["races"])
 
-          # 特定レースの存在確認
-          # 蒲郡6R = 07場 + 06R
-          test_race = "202608210706"
+          # ------------------------------------------------
+          # 指定レースを作成
+          # ------------------------------------------------
 
-          status["test_race"] = {
-              "race_code": test_race,
-              "exists": test_race in result["races"],
-              "data_types": list(
-                  result["races"].get(test_race, {}).keys()
-              )
+          venue = os.environ.get("VENUE", "").strip()
+          race_no = os.environ.get("RACE_NO", "").strip()
+
+          target = {
+              "generated_at": now.isoformat(),
+              "date": date_value,
+              "venue": venue,
+              "race_no": race_no,
+              "race_code": None,
+              "exists": False,
+              "data": {},
+              "error": None
           }
 
+          # 手動実行の場合だけ指定レースを作る
+          if venue and race_no:
+
+              venue_code = venues.get(venue)
+
+              if venue_code is None:
+                  target["error"] = "場名が認識できません: " + venue
+
+              else:
+                  try:
+                      race_number = int(race_no)
+
+                      if race_number < 1 or race_number > 12:
+                          raise ValueError
+
+                      race_code = (
+                          date_value.replace("-", "")
+                          + venue_code
+                          + f"{race_number:02d}"
+                      )
+
+                      target["race_code"] = race_code
+
+                      if race_code in result["races"]:
+                          target["exists"] = True
+                          target["data"] = result["races"][race_code]
+                      else:
+                          target["error"] = "指定レースのデータがありません"
+
+                  except ValueError:
+                      target["error"] = "レース番号は1〜12で指定してください"
+
+          # ファイル保存
           Path("latest.json").write_text(
               json.dumps(
                   result,
@@ -136,25 +218,36 @@ jobs:
               encoding="utf-8"
           )
 
+          Path("target.json").write_text(
+              json.dumps(
+                  target,
+                  ensure_ascii=False,
+                  indent=2
+              ),
+              encoding="utf-8"
+          )
+
           print("================================")
           print("BOAT RACE Bridge")
           print("取得時刻:", now.isoformat())
           print("総レース数:", len(result["races"]))
-          print("エラー:", result["errors"])
-          print("蒲郡6R:", status["test_race"])
+          print("指定場:", venue)
+          print("指定R:", race_no)
+          print("レースコード:", target["race_code"])
+          print("指定レース存在:", target["exists"])
+          print("エラー:", target["error"])
           print("================================")
-          PY
 
       - name: Save data
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          git add latest.json status.json
+          git add latest.json status.json target.json
 
           if git diff --cached --quiet; then
             echo "変更なし"
           else
-            git commit -m "Update BOAT RACE data and status"
+            git commit -m "Update BOAT RACE data"
             git push
           fi
