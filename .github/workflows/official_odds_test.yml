@@ -13,6 +13,11 @@ on:
         required: true
         default: "7"
 
+      race_date:
+        description: "開催日（YYYYMMDD）"
+        required: true
+        default: "20260821"
+
 permissions:
   contents: write
 
@@ -21,16 +26,29 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+
+      # ==============================
+      # Checkout
+      # ==============================
+
       - name: Checkout
         uses: actions/checkout@v4
+
+
+      # ==============================
+      # 公式BOAT RACEオッズ取得
+      # ==============================
 
       - name: Get official BOAT RACE odds
         env:
           VENUE_CODE: ${{ github.event.inputs.venue_code }}
           RACE_NO: ${{ github.event.inputs.race_no }}
+          RACE_DATE: ${{ github.event.inputs.race_date }}
 
         run: |
+
           python - <<'PY'
+
           import json
           import os
           import re
@@ -38,73 +56,153 @@ jobs:
           from datetime import datetime, timezone, timedelta
           from pathlib import Path
 
+
           # ==============================
           # 日本時間
           # ==============================
 
           JST = timezone(timedelta(hours=9))
+
           now = datetime.now(JST)
 
-          venue = os.environ["VENUE_CODE"]
-          race_no = int(os.environ["RACE_NO"])
 
-          date_value = now.strftime("%Y%m%d")
+          # ==============================
+          # 入力値
+          # ==============================
+
+          venue = os.environ["VENUE_CODE"]
+
+          race_no = int(
+              os.environ["RACE_NO"]
+          )
+
+          date_value = os.environ["RACE_DATE"]
+
+
+          # ==============================
+          # 日付チェック
+          # ==============================
+
+          if not re.fullmatch(
+              r"\d{8}",
+              date_value
+          ):
+
+              raise RuntimeError(
+                  "開催日はYYYYMMDD形式で指定してください: "
+                  + date_value
+              )
+
 
           # ==============================
           # 公式BOAT RACE オッズページ
-          # PC版を使用
           # ==============================
 
           url = (
               "https://www.boatrace.jp/owpc/pc/race/odds3t"
-              f"?rno={race_no}&jcd={venue}&hd={date_value}"
+              f"?rno={race_no}"
+              f"&jcd={venue}"
+              f"&hd={date_value}"
           )
+
 
           print("================================")
           print("Official BOAT RACE Odds Test")
-          print("URL:", url)
           print("================================")
+
+          print("開催日:", date_value)
+
+          print("場コード:", venue)
+
+          print("レース:", race_no)
+
+          print("URL:", url)
+
+          print("================================")
+
 
           # ==============================
           # User-Agent
           # ==============================
 
           request = urllib.request.Request(
+
               url,
+
               headers={
-                  "User-Agent": (
-                      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+
+                  "User-Agent":
+                  (
+                      "Mozilla/5.0 "
+                      "(Windows NT 10.0; Win64; x64) "
                       "AppleWebKit/537.36 "
                       "(KHTML, like Gecko) "
-                      "Chrome/131.0.0.0 Safari/537.36"
+                      "Chrome/131.0.0.0 "
+                      "Safari/537.36"
                   )
+
               }
+
           )
+
 
           # ==============================
           # 結果
           # ==============================
 
           result = {
-              "generated_at": now.isoformat(),
-              "url": url,
-              "venue_code": venue,
-              "race_no": race_no,
-              "date": date_value,
-              "downloaded": False,
-              "html_length": 0,
-              "odds_table_found": False,
-              "odds_point_count": 0,
-              "numeric_odds_count": 0,
-              "sample": {},
-              "error": None
+
+              "generated_at":
+                  now.isoformat(),
+
+              "url":
+                  url,
+
+              "venue_code":
+                  venue,
+
+              "race_no":
+                  race_no,
+
+              "date":
+                  date_value,
+
+              "downloaded":
+                  False,
+
+              "html_length":
+                  0,
+
+              "odds_table_found":
+                  False,
+
+              "odds_point_count":
+                  0,
+
+              "numeric_odds_count":
+                  0,
+
+              "sample":
+                  {},
+
+              "success":
+                  False,
+
+              "error":
+                  None
+
           }
+
 
           try:
 
               # ==============================
               # HTML取得
               # ==============================
+
+              print("")
+              print("HTML取得開始")
+
 
               with urllib.request.urlopen(
                   request,
@@ -116,143 +214,243 @@ jobs:
                       errors="replace"
                   )
 
-              result["downloaded"] = True
-              result["html_length"] = len(html)
 
-              print("HTML取得成功")
-              print("HTML文字数:", len(html))
+              result["downloaded"] = True
+
+              result["html_length"] = len(
+                  html
+              )
+
+
+              print(
+                  "HTML取得成功"
+              )
+
+              print(
+                  "HTML文字数:",
+                  len(html)
+              )
+
 
               # ==============================
-              # 取得HTMLを保存
+              # HTML保存
               # ==============================
 
               Path(
                   "official_odds_test.context.html"
               ).write_text(
+
                   html,
+
                   encoding="utf-8"
+
               )
 
-              print("取得HTML保存: OK")
+
+              print(
+                  "取得HTML保存: OK"
+              )
+
 
               # ==============================
-              # オッズエリア確認
+              # 3連単オッズエリア確認
               # ==============================
 
-              if '3連単オッズ' in html:
+              if "3連単オッズ" in html:
 
-                  result["odds_table_found"] = True
+                  result[
+                      "odds_table_found"
+                  ] = True
 
-                  print("3連単オッズエリア: OK")
+                  print(
+                      "3連単オッズエリア: OK"
+                  )
 
               else:
 
-                  print("3連単オッズエリア: 見つかりません")
+                  print(
+                      "3連単オッズエリア: 見つかりません"
+                  )
+
 
               # ==============================
-              # oddsPoint を取得
-              #
-              # 例:
-              #
-              # <td class="oddsPoint">16.1</td>
-              #
+              # oddsPoint取得
               # ==============================
 
               pattern = re.compile(
-                  r'<td[^>]*class=["\'][^"\']*oddsPoint[^"\']*["\'][^>]*>'
+
+                  r'<td[^>]*'
+                  r'class=["\'][^"\']*'
+                  r'oddsPoint'
+                  r'[^"\']*["\'][^>]*>'
                   r'\s*([^<]+?)\s*'
                   r'</td>',
+
                   re.IGNORECASE
+
               )
 
-              matches = pattern.findall(html)
 
-              result["odds_point_count"] = len(matches)
+              matches = pattern.findall(
+                  html
+              )
 
-              print("oddsPoint個数:", len(matches))
+
+              result[
+                  "odds_point_count"
+              ] = len(matches)
+
+
+              print(
+                  "oddsPoint個数:",
+                  len(matches)
+              )
+
 
               # ==============================
-              # 数字だけ取り出す
+              # 数値化
               # ==============================
 
               odds_values = []
+
 
               for value in matches:
 
                   value = value.strip()
 
-                  # カンマ除去
-                  value = value.replace(",", "")
+                  value = value.replace(
+                      ",",
+                      ""
+                  )
 
                   try:
 
-                      number = float(value)
-                      odds_values.append(number)
+                      number = float(
+                          value
+                      )
+
+                      odds_values.append(
+                          number
+                      )
 
                   except ValueError:
 
                       pass
 
-              result["numeric_odds_count"] = len(odds_values)
+
+              result[
+                  "numeric_odds_count"
+              ] = len(
+                  odds_values
+              )
+
 
               print(
                   "数値として取得できたオッズ数:",
                   len(odds_values)
               )
 
+
               # ==============================
-              # 最初の20件を確認
+              # サンプル
               # ==============================
 
               result["sample"] = {
-                  str(index + 1): value
-                  for index, value in enumerate(
+
+                  str(index + 1):
+                      value
+
+                  for index, value
+                  in enumerate(
                       odds_values[:20]
                   )
+
               }
 
-              print("--------------------------------")
-              print("サンプル:")
-              print(
-                  json.dumps(
-                      result["sample"],
-                      ensure_ascii=False,
-                      indent=2
-                  )
-              )
+
               print("--------------------------------")
 
+              print(
+                  "サンプル:"
+              )
+
+              print(
+
+                  json.dumps(
+
+                      result["sample"],
+
+                      ensure_ascii=False,
+
+                      indent=2
+
+                  )
+
+              )
+
+              print("--------------------------------")
+
+
               # ==============================
-              # テスト判定
-              #
-              # 3連単は
-              #
-              # 6 × 5 × 4 = 120通り
-              #
+              # 120個確認
               # ==============================
 
               if len(odds_values) != 120:
 
                   raise RuntimeError(
+
                       "3連単オッズを120個取得できませんでした: "
                       f"{len(odds_values)}個"
+
                   )
 
+
+              # ==============================
+              # 成功
+              # ==============================
+
+              result[
+                  "success"
+              ] = True
+
+
               print("")
+
               print("================================")
-              print("テスト成功")
-              print("3連単オッズ 120個を取得しました")
+
+              print(
+                  "テスト成功"
+              )
+
+              print(
+                  "3連単オッズ 120個を取得しました"
+              )
+
               print("================================")
+
 
           except Exception as e:
 
-              result["error"] = str(e)
+              result[
+                  "error"
+              ] = str(e)
+
 
               print("")
+
               print("================================")
-              print("テスト失敗")
-              print("エラー:", e)
+
+              print(
+                  "テスト失敗"
+              )
+
+              print(
+                  "エラー:",
+                  e
+              )
+
               print("================================")
+
 
           # ==============================
           # JSON保存
@@ -261,34 +459,131 @@ jobs:
           Path(
               "official_odds_test.json"
           ).write_text(
+
               json.dumps(
+
                   result,
+
                   ensure_ascii=False,
+
                   indent=2
+
               ),
+
               encoding="utf-8"
+
           )
 
-          # ==============================
-          # エラーならActionsを赤にする
-          # ==============================
 
-          if result["error"] is not None:
+          print("")
 
-              raise SystemExit(1)
+          print(
+              "official_odds_test.json 保存: OK"
+          )
 
           PY
 
+
+      # ==============================
+      # テスト結果を保存
+      # ==============================
+
       - name: Save test result
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          git add -- official_odds_test.json official_odds_test.context.html
+          git config user.name \
+            "github-actions[bot]"
+
+          git config user.email \
+            "41898282+github-actions[bot]@users.noreply.github.com"
+
+
+          git add -- \
+            official_odds_test.json \
+            official_odds_test.context.html
+
 
           if git diff --cached --quiet; then
+
             echo "変更なし"
+
           else
-            git commit -m "Test official BOAT RACE odds extraction"
+
+            git commit \
+              -m "Test official BOAT RACE odds extraction"
+
             git push
+
           fi
+
+
+      # ==============================
+      # 最終判定
+      # ==============================
+
+      - name: Check test result
+        run: |
+
+          python - <<'PY'
+
+          import json
+
+          with open(
+              "official_odds_test.json",
+              encoding="utf-8"
+          ) as f:
+
+              result = json.load(f)
+
+
+          print("================================")
+
+          print(
+              "最終テスト判定"
+          )
+
+          print(
+              "開催日:",
+              result["date"]
+          )
+
+          print(
+              "場コード:",
+              result["venue_code"]
+          )
+
+          print(
+              "レース:",
+              result["race_no"]
+          )
+
+          print(
+              "oddsPoint:",
+              result["odds_point_count"]
+          )
+
+          print(
+              "数値オッズ:",
+              result["numeric_odds_count"]
+          )
+
+          print(
+              "成功:",
+              result["success"]
+          )
+
+          print("================================")
+
+
+          if not result["success"]:
+
+              raise SystemExit(
+                  "Official Odds Test FAILED"
+              )
+
+
+          print(
+              "Official Odds Test PASSED"
+          )
+
+          PY
