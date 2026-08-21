@@ -95,6 +95,18 @@ jobs:
 
 
           # ==============================
+          # レース番号チェック
+          # ==============================
+
+          if not 1 <= race_no <= 12:
+
+              raise RuntimeError(
+                  "レース番号は1〜12で指定してください: "
+                  + str(race_no)
+              )
+
+
+          # ==============================
           # 公式BOAT RACE オッズページ
           # ==============================
 
@@ -279,11 +291,164 @@ jobs:
               )
 
 
+              # ==================================================
+              # 3連単オッズ表を取得
+              #
+              # 公式ページの構造
+              #
+              #        1列       2列       3列 ...
+              #
+              # 1着      1         2         3
+              #
+              # 2着      2         1         1
+              #          3         3         2
+              #          4         4         4
+              #
+              # その右側の数字が3着、
+              # さらに右側がオッズ
+              #
+              # 例:
+              #
+              # 1 | 2 | 3 | 16.1
+              #
+              # → 1-2-3 = 16.1
+              #
+              # ==================================================
+
+
               # ==============================
-              # oddsPoint取得
+              # 3連単オッズ表のtableを探す
               # ==============================
 
-              pattern = re.compile(
+              title_position = html.find(
+                  "3連単オッズ"
+              )
+
+
+              if title_position == -1:
+
+                  raise RuntimeError(
+                      "3連単オッズタイトルが見つかりません"
+                  )
+
+
+              table_start = html.find(
+                  "<table",
+                  title_position
+              )
+
+
+              table_end = html.find(
+                  "</table>",
+                  table_start
+              )
+
+
+              if (
+                  table_start == -1
+                  or table_end == -1
+              ):
+
+                  raise RuntimeError(
+                      "3連単オッズ表のtableが見つかりません"
+                  )
+
+
+              odds_table_html = html[
+                  table_start:
+                  table_end + len("</table>")
+              ]
+
+
+              # ==============================
+              # tbody取得
+              # ==============================
+
+              tbody_match = re.search(
+
+                  r"<tbody[^>]*>"
+                  r"(.*?)"
+                  r"</tbody>",
+
+                  odds_table_html,
+
+                  re.IGNORECASE |
+                  re.DOTALL
+
+              )
+
+
+              if not tbody_match:
+
+                  raise RuntimeError(
+                      "3連単オッズ表のtbodyが見つかりません"
+                  )
+
+
+              tbody_html = tbody_match.group(1)
+
+
+              # ==============================
+              # tr取得
+              # ==============================
+
+              rows = re.findall(
+
+                  r"<tr[^>]*>"
+                  r"(.*?)"
+                  r"</tr>",
+
+                  tbody_html,
+
+                  re.IGNORECASE |
+                  re.DOTALL
+
+              )
+
+
+              print(
+                  "オッズ表行数:",
+                  len(rows)
+              )
+
+
+              if len(rows) < 20:
+
+                  raise RuntimeError(
+
+                      "3連単オッズ表の行数が少なすぎます: "
+                      + str(len(rows))
+
+                  )
+
+
+              # ==============================
+              # td文字列を取得する関数
+              # ==============================
+
+              def extract_td_text(td_html):
+
+                  text = re.sub(
+                      r"<[^>]+>",
+                      "",
+                      td_html
+                  )
+
+                  text = (
+                      text
+                      .replace("&nbsp;", " ")
+                      .replace("&#160;", " ")
+                      .strip()
+                  )
+
+                  return text
+
+
+              # ==============================
+              # oddsPointを取得
+              # ==============================
+
+              odds_pattern = re.compile(
 
                   r'<td[^>]*'
                   r'class=["\'][^"\']*'
@@ -297,30 +462,32 @@ jobs:
               )
 
 
-              matches = pattern.findall(
+              all_odds_matches = odds_pattern.findall(
                   html
               )
 
 
               result[
                   "odds_point_count"
-              ] = len(matches)
+              ] = len(
+                  all_odds_matches
+              )
 
 
               print(
-                  "oddsPoint個数:",
-                  len(matches)
+                  "HTML全体のoddsPoint個数:",
+                  len(all_odds_matches)
               )
 
 
               # ==============================
-              # 数値化
+              # 数値オッズ確認
               # ==============================
 
-              odds_values = []
+              numeric_all = []
 
 
-              for value in matches:
+              for value in all_odds_matches:
 
                   value = value.strip()
 
@@ -331,12 +498,8 @@ jobs:
 
                   try:
 
-                      number = float(
-                          value
-                      )
-
-                      odds_values.append(
-                          number
+                      numeric_all.append(
+                          float(value)
                       )
 
                   except ValueError:
@@ -347,72 +510,379 @@ jobs:
               result[
                   "numeric_odds_count"
               ] = len(
-                  odds_values
+                  numeric_all
               )
 
 
               print(
-                  "数値として取得できたオッズ数:",
-                  len(odds_values)
+                  "数値オッズ数:",
+                  len(numeric_all)
               )
 
 
-              # ==============================
-              # 120個確認
-              # ==============================
+              # ==================================================
+              # 3連単組み合わせ復元
+              # ==================================================
 
-              if len(odds_values) != 120:
+              odds_by_combination = {}
 
-                  raise RuntimeError(
 
-                      "3連単オッズを120個取得できませんでした: "
-                      f"{len(odds_values)}個"
+              # ----------------------------------------------
+              # 各行について処理
+              #
+              # 最初の行:
+              #
+              # 18 td
+              #
+              # [2着][3着][オッズ]
+              # [2着][3着][オッズ]
+              # ...
+              #
+              # 2行目以降:
+              #
+              # 12 td
+              #
+              # [3着][オッズ]
+              # [3着][オッズ]
+              # ...
+              #
+              # 2着はrowspan=4なので
+              # 2行目以降にはHTML上存在しない。
+              # ----------------------------------------------
+
+
+              current_second = [
+                  None,
+                  None,
+                  None,
+                  None,
+                  None,
+                  None
+              ]
+
+
+              for row_index, row_html in enumerate(rows):
+
+                  td_blocks = re.findall(
+
+                      r"<td\b[^>]*>"
+                      r".*?"
+                      r"</td>",
+
+                      row_html,
+
+                      re.IGNORECASE |
+                      re.DOTALL
 
                   )
 
 
+                  td_count = len(td_blocks)
+
+
+                  print(
+                      f"行 {row_index + 1}: td={td_count}"
+                  )
+
+
+                  # ------------------------------------------
+                  # 最初の行
+                  # 18個
+                  # ------------------------------------------
+
+                  if td_count == 18:
+
+                      for group in range(6):
+
+                          base = group * 3
+
+
+                          second_text = extract_td_text(
+                              td_blocks[base]
+                          )
+
+                          third_text = extract_td_text(
+                              td_blocks[base + 1]
+                          )
+
+                          odds_text = extract_td_text(
+                              td_blocks[base + 2]
+                          )
+
+
+                          try:
+
+                              first = group + 1
+
+                              second = int(
+                                  second_text
+                              )
+
+                              third = int(
+                                  third_text
+                              )
+
+                              odds = float(
+                                  odds_text.replace(
+                                      ",",
+                                      ""
+                                  )
+                              )
+
+                          except ValueError:
+
+                              continue
+
+
+                          current_second[
+                              group
+                          ] = second
+
+
+                          combination = (
+                              f"{first}-"
+                              f"{second}-"
+                              f"{third}"
+                          )
+
+
+                          odds_by_combination[
+                              combination
+                          ] = odds
+
+
+                  # ------------------------------------------
+                  # 2行目以降
+                  # 12個
+                  # ------------------------------------------
+
+                  elif td_count == 12:
+
+                      for group in range(6):
+
+                          base = group * 2
+
+
+                          third_text = extract_td_text(
+                              td_blocks[base]
+                          )
+
+                          odds_text = extract_td_text(
+                              td_blocks[base + 1]
+                          )
+
+
+                          try:
+
+                              first = group + 1
+
+                              second = current_second[
+                                  group
+                              ]
+
+                              third = int(
+                                  third_text
+                              )
+
+                              odds = float(
+                                  odds_text.replace(
+                                      ",",
+                                      ""
+                                  )
+                              )
+
+                          except (
+                              ValueError,
+                              TypeError
+                          ):
+
+                              continue
+
+
+                          if second is None:
+
+                              continue
+
+
+                          combination = (
+                              f"{first}-"
+                              f"{second}-"
+                              f"{third}"
+                          )
+
+
+                          odds_by_combination[
+                              combination
+                          ] = odds
+
+
+                  else:
+
+                      print(
+                          "この行は想定外のtd数:",
+                          td_count
+                      )
+
+
               # ==============================
-              # 重要
-              #
-              # 今回はまず公式HTMLの並び順を
-              # 壊さず確認する。
-              #
-              # 買い目との完全な紐付けは、
-              # このテスト結果を確認してから行う。
+              # 結果保存
               # ==============================
+
+              result[
+                  "combination_count"
+              ] = len(
+                  odds_by_combination
+              )
+
+
+              result[
+                  "odds_by_combination"
+              ] = odds_by_combination
+
+
+              # ==============================
+              # サンプル
+              # ==============================
+
+              sample_keys = [
+
+                  "1-2-3",
+                  "1-2-4",
+                  "1-2-5",
+                  "1-2-6",
+
+                  "1-3-2",
+                  "1-3-4",
+                  "1-3-5",
+                  "1-3-6",
+
+                  "1-4-2",
+                  "1-4-3",
+                  "1-4-5",
+                  "1-4-6"
+
+              ]
+
 
               result[
                   "sample"
               ] = {
 
-                  str(index + 1):
-                      value
+                  key:
+                  odds_by_combination[key]
 
-                  for index, value
-                  in enumerate(
-                      odds_values[:20]
-                  )
+                  for key in sample_keys
+
+                  if key in odds_by_combination
 
               }
 
 
-              # ==============================
-              # 現段階では
-              # odds_by_combination は作らない
-              #
-              # 理由：
-              # HTMLのrowspan構造を正しく解析してから
-              # 買い目との対応を確定するため。
-              # ==============================
-
-              result[
-                  "combination_count"
-              ] = 0
+              print("")
+              print("================================")
+              print("3連単組み合わせ解析結果")
+              print("================================")
 
 
-              result[
-                  "odds_by_combination"
-              ] = {}
+              print(
+                  "組み合わせ数:",
+                  len(odds_by_combination)
+              )
+
+
+              print("")
+
+
+              for key in sample_keys:
+
+                  if key in odds_by_combination:
+
+                      print(
+                          key,
+                          "=",
+                          odds_by_combination[key]
+                      )
+
+                  else:
+
+                      print(
+                          key,
+                          "= 見つかりません"
+                      )
+
+
+              print("")
+              print("================================")
+
+
+              # ==================================================
+              # 120通り確認
+              # ==================================================
+
+              if len(odds_by_combination) != 120:
+
+                  raise RuntimeError(
+
+                      "3連単組み合わせを120通り復元できませんでした: "
+                      f"{len(odds_by_combination)}通り"
+
+                  )
+
+
+              # ==================================================
+              # 重要な値を確認
+              # ==================================================
+
+              expected_values = {
+
+                  "1-2-3": 16.1,
+                  "1-2-4": 27.7,
+                  "1-2-5": 62.5
+
+              }
+
+
+              for combination, expected in expected_values.items():
+
+                  actual = odds_by_combination.get(
+                      combination
+                  )
+
+
+                  if actual != expected:
+
+                      raise RuntimeError(
+
+                          f"{combination} のオッズが一致しません。"
+                          f"期待値={expected}, "
+                          f"取得値={actual}"
+
+                      )
+
+
+              print("")
+              print("================================")
+              print("重要組み合わせ確認")
+              print("================================")
+
+
+              print(
+                  "1-2-3 =",
+                  odds_by_combination["1-2-3"]
+              )
+
+              print(
+                  "1-2-4 =",
+                  odds_by_combination["1-2-4"]
+              )
+
+              print(
+                  "1-2-5 =",
+                  odds_by_combination["1-2-5"]
+              )
+
+
+              print("================================")
 
 
               # ==============================
@@ -425,40 +895,38 @@ jobs:
 
 
               print("")
-
+              print("================================")
+              print("テスト成功")
               print("================================")
 
               print(
-                  "テスト成功"
+                  "3連単オッズ:",
+                  len(numeric_all),
+                  "個"
               )
 
               print(
-                  "3連単オッズ 120個を取得しました"
+                  "組み合わせ:",
+                  len(odds_by_combination),
+                  "通り"
+              )
+
+              print(
+                  "1-2-3:",
+                  odds_by_combination["1-2-3"]
+              )
+
+              print(
+                  "1-2-4:",
+                  odds_by_combination["1-2-4"]
+              )
+
+              print(
+                  "1-2-5:",
+                  odds_by_combination["1-2-5"]
               )
 
               print("================================")
-
-
-              print("")
-
-              print(
-                  "先頭20個:"
-              )
-
-
-              print(
-
-                  json.dumps(
-
-                      result["sample"],
-
-                      ensure_ascii=False,
-
-                      indent=2
-
-                  )
-
-              )
 
 
           except Exception as e:
@@ -469,12 +937,9 @@ jobs:
 
 
               print("")
-
               print("================================")
-
-              print(
-                  "テスト失敗"
-              )
+              print("テスト失敗")
+              print("================================")
 
               print(
                   "エラー:",
@@ -508,7 +973,6 @@ jobs:
 
 
           print("")
-
           print(
               "official_odds_test.json 保存: OK"
           )
@@ -542,7 +1006,7 @@ jobs:
           else
 
             git commit \
-              -m "Test official BOAT RACE odds extraction"
+              -m "Fix official BOAT RACE odds combination mapping"
 
             git push
 
@@ -570,40 +1034,81 @@ jobs:
 
 
           print("================================")
+          print("最終テスト判定")
+          print("================================")
 
-          print(
-              "最終テスト判定"
-          )
 
           print(
               "開催日:",
               result["date"]
           )
 
+
           print(
               "場コード:",
               result["venue_code"]
           )
+
 
           print(
               "レース:",
               result["race_no"]
           )
 
+
+          print(
+              "HTML:",
+              result["html_length"]
+          )
+
+
           print(
               "oddsPoint:",
               result["odds_point_count"]
           )
+
 
           print(
               "数値オッズ:",
               result["numeric_odds_count"]
           )
 
+
+          print(
+              "組み合わせ:",
+              result["combination_count"]
+          )
+
+
+          print(
+              "1-2-3:",
+              result["odds_by_combination"].get(
+                  "1-2-3"
+              )
+          )
+
+
+          print(
+              "1-2-4:",
+              result["odds_by_combination"].get(
+                  "1-2-4"
+              )
+          )
+
+
+          print(
+              "1-2-5:",
+              result["odds_by_combination"].get(
+                  "1-2-5"
+              )
+          )
+
+
           print(
               "成功:",
               result["success"]
           )
+
 
           print("================================")
 
@@ -615,20 +1120,40 @@ jobs:
               )
 
 
-          if result["odds_point_count"] != 120:
+          if result["combination_count"] != 120:
 
               raise SystemExit(
-                  "Official Odds Test FAILED: "
-                  "oddsPointが120ではありません"
+                  "3連単120通りの復元に失敗しています"
               )
 
 
-          if result["numeric_odds_count"] != 120:
+          expected = {
 
-              raise SystemExit(
-                  "Official Odds Test FAILED: "
-                  "数値オッズが120ではありません"
+              "1-2-3": 16.1,
+              "1-2-4": 27.7,
+              "1-2-5": 62.5
+
+          }
+
+
+          for key, value in expected.items():
+
+              actual = (
+                  result[
+                      "odds_by_combination"
+                  ].get(key)
               )
+
+
+              if actual != value:
+
+                  raise SystemExit(
+
+                      f"{key} の確認に失敗: "
+                      f"期待={value}, "
+                      f"実際={actual}"
+
+                  )
 
 
           print(
