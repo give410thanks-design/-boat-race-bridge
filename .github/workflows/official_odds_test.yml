@@ -23,12 +23,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install parser
-        run: |
-          python -m pip install --upgrade pip
-          python -m pip install beautifulsoup4
-
-      - name: Get official BOAT RACE odds HTML structure
+      - name: Inspect official BOAT RACE HTML
         env:
           VENUE_CODE: ${{ github.event.inputs.venue_code }}
           RACE_NO: ${{ github.event.inputs.race_no }}
@@ -39,8 +34,6 @@ jobs:
           import urllib.request
           from datetime import datetime, timezone, timedelta
           from pathlib import Path
-
-          from bs4 import BeautifulSoup
 
           JST = timezone(timedelta(hours=9))
           now = datetime.now(JST)
@@ -75,19 +68,18 @@ jobs:
               "race_no": race_no,
               "downloaded": False,
               "html_length": 0,
-              "odds_table_found": False,
-              "table_count": 0,
-              "target_table_html_length": 0,
-              "target_table_text": "",
+              "odds_text_found": False,
+              "context_before": "",
+              "context_after": "",
               "error": None
           }
 
           try:
-              # --------------------------------
-              # 1. 公式HTML取得
-              # --------------------------------
               with urllib.request.urlopen(request, timeout=30) as response:
-                  html = response.read().decode("utf-8", errors="replace")
+                  html = response.read().decode(
+                      "utf-8",
+                      errors="replace"
+                  )
 
               result["downloaded"] = True
               result["html_length"] = len(html)
@@ -95,85 +87,72 @@ jobs:
               print("HTML取得成功")
               print("HTML文字数:", len(html))
 
-              # --------------------------------
-              # 2. HTML解析
-              # --------------------------------
-              soup = BeautifulSoup(html, "html.parser")
+              # 「3連単オッズ」の位置を探す
+              target = "3連単オッズ"
+              position = html.find(target)
 
-              tables = soup.find_all("table")
-              result["table_count"] = len(tables)
+              if position >= 0:
 
-              print("table総数:", len(tables))
+                  result["odds_text_found"] = True
 
-              target_table = None
-
-              # 「3連単オッズ」を含むtableを探す
-              for index, table in enumerate(tables):
-                  text = table.get_text(" ", strip=True)
-
-                  if "3連単オッズ" in text:
-                      target_table = table
-
-                      print("3連単オッズ表を発見")
-                      print("table番号:", index)
-
-                      break
-
-              # --------------------------------
-              # 3. 対象tableを保存
-              # --------------------------------
-              if target_table is not None:
-
-                  result["odds_table_found"] = True
-
-                  table_html = str(target_table)
-                  table_text = target_table.get_text(
-                      " | ",
-                      strip=True
+                  # 前後5000文字を取得
+                  start = max(0, position - 5000)
+                  end = min(
+                      len(html),
+                      position + 10000
                   )
 
-                  result["target_table_html_length"] = len(table_html)
-                  result["target_table_text"] = table_text
+                  context = html[start:end]
 
+                  result["context_before"] = html[
+                      start:position
+                  ]
+
+                  result["context_after"] = html[
+                      position + len(target):end
+                  ]
+
+                  # 調査用HTMLとして保存
                   Path(
-                      "official_odds_table.html"
+                      "official_odds_context.html"
                   ).write_text(
-                      table_html,
+                      context,
                       encoding="utf-8"
                   )
 
+                  # 読みやすいテキスト版
                   Path(
-                      "official_odds_table.txt"
+                      "official_odds_context.txt"
                   ).write_text(
-                      table_text,
+                      context,
                       encoding="utf-8"
                   )
 
                   print(
-                      "対象table HTML文字数:",
-                      len(table_html)
+                      "「3連単オッズ」を検出しました"
+                  )
+                  print(
+                      "HTML内の位置:",
+                      position
                   )
 
                   print("================================")
-                  print("対象tableのテキスト")
+                  print("前後のHTML")
                   print("================================")
-                  print(table_text[:10000])
+                  print(context)
 
               else:
+
                   print(
-                      "3連単オッズ表を含むtableが"
-                      "見つかりませんでした"
+                      "「3連単オッズ」が見つかりませんでした"
                   )
 
           except Exception as e:
 
               result["error"] = str(e)
 
-              print("エラー:", e)
+              print("取得エラー:", e)
 
-          # --------------------------------
-          # 4. JSON保存
-          # --------------------------------
           Path(
               "official_odds_test.json"
           ).write_text(
@@ -186,17 +165,15 @@ jobs:
           )
 
           print("================================")
-          print("Official BOAT RACE HTML Structure Test")
+          print("Official BOAT RACE HTML Inspection")
           print("取得時刻:", now.isoformat())
           print("場コード:", venue)
           print("レース:", race_no)
           print("取得成功:", result["downloaded"])
           print("HTML文字数:", result["html_length"])
-          print("table総数:", result["table_count"])
-          print("オッズ表:", result["odds_table_found"])
           print(
-              "対象table HTML文字数:",
-              result["target_table_html_length"]
+              "3連単オッズ文字検出:",
+              result["odds_text_found"]
           )
           print("エラー:", result["error"])
           print("================================")
@@ -208,12 +185,18 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
           git add official_odds_test.json
-          git add official_odds_table.html
-          git add official_odds_table.txt
+
+          if [ -f official_odds_context.html ]; then
+            git add official_odds_context.html
+          fi
+
+          if [ -f official_odds_context.txt ]; then
+            git add official_odds_context.txt
+          fi
 
           if git diff --cached --quiet; then
             echo "変更なし"
           else
-            git commit -m "Inspect official BOAT RACE odds HTML structure"
+            git commit -m "Inspect official BOAT RACE odds HTML"
             git push
           fi
