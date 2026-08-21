@@ -16,7 +16,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Get today's BOAT RACE preview data
+      - name: Get BOAT RACE preview data
         run: |
           python - <<'PY'
           import csv
@@ -46,7 +46,15 @@ jobs:
               "errors": {}
           }
 
+          status = {
+              "generated_at": now.isoformat(),
+              "date": date_value,
+              "sources": {},
+              "total_races": 0
+          }
+
           for source, name in sources.items():
+
               url = (
                   "https://boatracecsv.github.io/data/previews/"
                   + source + "/" + date_path + ".csv"
@@ -56,9 +64,12 @@ jobs:
                   with urllib.request.urlopen(url, timeout=30) as response:
                       text = response.read().decode("utf-8-sig")
 
-                  reader = csv.DictReader(text.splitlines())
+                  rows = list(csv.DictReader(text.splitlines()))
 
-                  for row in reader:
+                  valid_rows = 0
+
+                  for row in rows:
+
                       if row.get("レース日") != date_value:
                           continue
 
@@ -67,13 +78,45 @@ jobs:
                       if not race_code:
                           continue
 
+                      valid_rows += 1
+
                       if race_code not in result["races"]:
                           result["races"][race_code] = {}
 
                       result["races"][race_code][name] = row
 
+                  status["sources"][source] = {
+                      "name": name,
+                      "url": url,
+                      "downloaded": True,
+                      "rows": len(rows),
+                      "today_rows": valid_rows
+                  }
+
               except Exception as e:
+
                   result["errors"][source] = str(e)
+
+                  status["sources"][source] = {
+                      "name": name,
+                      "url": url,
+                      "downloaded": False,
+                      "error": str(e)
+                  }
+
+          status["total_races"] = len(result["races"])
+
+          # 特定レースの存在確認
+          # 蒲郡6R = 07場 + 06R
+          test_race = "202608210706"
+
+          status["test_race"] = {
+              "race_code": test_race,
+              "exists": test_race in result["races"],
+              "data_types": list(
+                  result["races"].get(test_race, {}).keys()
+              )
+          }
 
           Path("latest.json").write_text(
               json.dumps(
@@ -84,21 +127,34 @@ jobs:
               encoding="utf-8"
           )
 
-          print("取得完了")
-          print("レース数:", len(result["races"]))
+          Path("status.json").write_text(
+              json.dumps(
+                  status,
+                  ensure_ascii=False,
+                  indent=2
+              ),
+              encoding="utf-8"
+          )
+
+          print("================================")
+          print("BOAT RACE Bridge")
+          print("取得時刻:", now.isoformat())
+          print("総レース数:", len(result["races"]))
           print("エラー:", result["errors"])
+          print("蒲郡6R:", status["test_race"])
+          print("================================")
           PY
 
-      - name: Save latest.json
+      - name: Save data
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          git add latest.json
+          git add latest.json status.json
 
           if git diff --cached --quiet; then
             echo "変更なし"
           else
-            git commit -m "Update BOAT RACE preview data"
+            git commit -m "Update BOAT RACE data and status"
             git push
           fi
