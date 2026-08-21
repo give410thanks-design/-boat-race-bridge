@@ -4,19 +4,19 @@ on:
   workflow_dispatch:
     inputs:
       venue_code:
-        description: "場コード（蒲郡=07）"
+        description: "場コード（芦屋=21）"
         required: true
-        default: "07"
+        default: "21"
 
       race_no:
         description: "レース番号"
         required: true
-        default: "7"
+        default: "1"
 
       race_date:
         description: "開催日（YYYYMMDD）"
         required: true
-        default: "20260821"
+        default: "20260822"
 
 permissions:
   contents: write
@@ -95,6 +95,21 @@ jobs:
 
 
           # ==============================
+          # 場コードチェック
+          # ==============================
+
+          if not re.fullmatch(
+              r"\d{2}",
+              venue
+          ):
+
+              raise RuntimeError(
+                  "場コードは2桁の数字で指定してください: "
+                  + venue
+              )
+
+
+          # ==============================
           # レース番号チェック
           # ==============================
 
@@ -123,11 +138,8 @@ jobs:
           print("================================")
 
           print("開催日:", date_value)
-
           print("場コード:", venue)
-
           print("レース:", race_no)
-
           print("URL:", url)
 
           print("================================")
@@ -195,6 +207,12 @@ jobs:
                   0,
 
               "combination_count":
+                  0,
+
+              "unique_combination_count":
+                  0,
+
+              "invalid_combination_count":
                   0,
 
               "sample":
@@ -289,31 +307,6 @@ jobs:
               print(
                   "3連単オッズエリア: OK"
               )
-
-
-              # ==================================================
-              # 3連単オッズ表を取得
-              #
-              # 公式ページの構造
-              #
-              #        1列       2列       3列 ...
-              #
-              # 1着      1         2         3
-              #
-              # 2着      2         1         1
-              #          3         3         2
-              #          4         4         4
-              #
-              # その右側の数字が3着、
-              # さらに右側がオッズ
-              #
-              # 例:
-              #
-              # 1 | 2 | 3 | 16.1
-              #
-              # → 1-2-3 = 16.1
-              #
-              # ==================================================
 
 
               # ==============================
@@ -423,7 +416,7 @@ jobs:
 
 
               # ==============================
-              # td文字列を取得する関数
+              # td文字列取得
               # ==============================
 
               def extract_td_text(td_html):
@@ -445,7 +438,7 @@ jobs:
 
 
               # ==============================
-              # oddsPointを取得
+              # oddsPoint取得
               # ==============================
 
               odds_pattern = re.compile(
@@ -463,7 +456,7 @@ jobs:
 
 
               all_odds_matches = odds_pattern.findall(
-                  html
+                  odds_table_html
               )
 
 
@@ -475,7 +468,7 @@ jobs:
 
 
               print(
-                  "HTML全体のoddsPoint個数:",
+                  "オッズ表内のoddsPoint個数:",
                   len(all_odds_matches)
               )
 
@@ -520,35 +513,11 @@ jobs:
               )
 
 
-              # ==================================================
+              # ==============================
               # 3連単組み合わせ復元
-              # ==================================================
+              # ==============================
 
               odds_by_combination = {}
-
-
-              # ----------------------------------------------
-              # 各行について処理
-              #
-              # 最初の行:
-              #
-              # 18 td
-              #
-              # [2着][3着][オッズ]
-              # [2着][3着][オッズ]
-              # ...
-              #
-              # 2行目以降:
-              #
-              # 12 td
-              #
-              # [3着][オッズ]
-              # [3着][オッズ]
-              # ...
-              #
-              # 2着はrowspan=4なので
-              # 2行目以降にはHTML上存在しない。
-              # ----------------------------------------------
 
 
               current_second = [
@@ -586,8 +555,7 @@ jobs:
 
 
                   # ------------------------------------------
-                  # 最初の行
-                  # 18個
+                  # 各1着グループの最初の行
                   # ------------------------------------------
 
                   if td_count == 18:
@@ -653,7 +621,6 @@ jobs:
 
                   # ------------------------------------------
                   # 2行目以降
-                  # 12個
                   # ------------------------------------------
 
                   elif td_count == 12:
@@ -725,7 +692,7 @@ jobs:
 
 
               # ==============================
-              # 結果保存
+              # 組み合わせ数
               # ==============================
 
               result[
@@ -736,8 +703,69 @@ jobs:
 
 
               result[
-                  "odds_by_combination"
-              ] = odds_by_combination
+                  "unique_combination_count"
+              ] = len(
+                  set(
+                      odds_by_combination.keys()
+                  )
+              )
+
+
+              # ==============================
+              # 3連単として正しい組み合わせ確認
+              # ==============================
+
+              invalid_combinations = []
+
+
+              for combination in odds_by_combination:
+
+                  parts = combination.split("-")
+
+
+                  if len(parts) != 3:
+
+                      invalid_combinations.append(
+                          combination
+                      )
+
+                      continue
+
+
+                  try:
+
+                      numbers = [
+                          int(x)
+                          for x in parts
+                      ]
+
+                  except ValueError:
+
+                      invalid_combinations.append(
+                          combination
+                      )
+
+                      continue
+
+
+                  if (
+                      any(
+                          x < 1 or x > 6
+                          for x in numbers
+                      )
+                      or len(set(numbers)) != 3
+                  ):
+
+                      invalid_combinations.append(
+                          combination
+                      )
+
+
+              result[
+                  "invalid_combination_count"
+              ] = len(
+                  invalid_combinations
+              )
 
 
               # ==============================
@@ -757,9 +785,7 @@ jobs:
                   "1-3-6",
 
                   "1-4-2",
-                  "1-4-3",
-                  "1-4-5",
-                  "1-4-6"
+                  "1-4-3"
 
               ]
 
@@ -778,6 +804,10 @@ jobs:
               }
 
 
+              # ==============================
+              # 結果表示
+              # ==============================
+
               print("")
               print("================================")
               print("3連単組み合わせ解析結果")
@@ -790,7 +820,28 @@ jobs:
               )
 
 
+              print(
+                  "重複なし組み合わせ数:",
+                  len(
+                      set(
+                          odds_by_combination.keys()
+                      )
+                  )
+              )
+
+
+              print(
+                  "不正組み合わせ数:",
+                  len(invalid_combinations)
+              )
+
+
               print("")
+
+
+              print(
+                  "取得オッズサンプル:"
+              )
 
 
               for key in sample_keys:
@@ -815,9 +866,9 @@ jobs:
               print("================================")
 
 
-              # ==================================================
+              # ==============================
               # 120通り確認
-              # ==================================================
+              # ==============================
 
               if len(odds_by_combination) != 120:
 
@@ -829,60 +880,51 @@ jobs:
                   )
 
 
-              # ==================================================
-              # 重要な値を確認
-              # ==================================================
+              # ==============================
+              # 重複確認
+              # ==============================
 
-              expected_values = {
+              if len(
+                  set(
+                      odds_by_combination.keys()
+                  )
+              ) != 120:
 
-                  "1-2-3": 16.1,
-                  "1-2-4": 27.7,
-                  "1-2-5": 62.5
-
-              }
-
-
-              for combination, expected in expected_values.items():
-
-                  actual = odds_by_combination.get(
-                      combination
+                  raise RuntimeError(
+                      "3連単組み合わせに重複があります"
                   )
 
 
-                  if actual != expected:
+              # ==============================
+              # 不正組み合わせ確認
+              # ==============================
 
-                      raise RuntimeError(
+              if invalid_combinations:
 
-                          f"{combination} のオッズが一致しません。"
-                          f"期待値={expected}, "
-                          f"取得値={actual}"
+                  raise RuntimeError(
 
+                      "不正な3連単組み合わせがあります: "
+                      + str(
+                          invalid_combinations[:10]
                       )
 
-
-              print("")
-              print("================================")
-              print("重要組み合わせ確認")
-              print("================================")
+                  )
 
 
-              print(
-                  "1-2-3 =",
-                  odds_by_combination["1-2-3"]
-              )
+              # ==============================
+              # オッズ数確認
+              # ==============================
 
-              print(
-                  "1-2-4 =",
-                  odds_by_combination["1-2-4"]
-              )
+              if len(numeric_all) != 120:
 
-              print(
-                  "1-2-5 =",
-                  odds_by_combination["1-2-5"]
-              )
+                  raise RuntimeError(
 
+                      "数値オッズが120個ではありません: "
+                      + str(
+                          len(numeric_all)
+                      )
 
-              print("================================")
+                  )
 
 
               # ==============================
@@ -899,11 +941,13 @@ jobs:
               print("テスト成功")
               print("================================")
 
+
               print(
                   "3連単オッズ:",
                   len(numeric_all),
                   "個"
               )
+
 
               print(
                   "組み合わせ:",
@@ -911,20 +955,12 @@ jobs:
                   "通り"
               )
 
-              print(
-                  "1-2-3:",
-                  odds_by_combination["1-2-3"]
-              )
 
               print(
-                  "1-2-4:",
-                  odds_by_combination["1-2-4"]
+                  "不正組み合わせ:",
+                  len(invalid_combinations)
               )
 
-              print(
-                  "1-2-5:",
-                  odds_by_combination["1-2-5"]
-              )
 
               print("================================")
 
@@ -941,10 +977,12 @@ jobs:
               print("テスト失敗")
               print("================================")
 
+
               print(
                   "エラー:",
                   e
               )
+
 
               print("================================")
 
@@ -952,6 +990,11 @@ jobs:
           # ==============================
           # JSON保存
           # ==============================
+
+          result[
+              "odds_by_combination"
+          ] = odds_by_combination
+
 
           Path(
               "official_odds_test.json"
@@ -1006,7 +1049,7 @@ jobs:
           else
 
             git commit \
-              -m "Fix official BOAT RACE odds combination mapping"
+              -m "Update official BOAT RACE odds test result"
 
             git push
 
@@ -1081,6 +1124,18 @@ jobs:
 
 
           print(
+              "重複なし:",
+              result["unique_combination_count"]
+          )
+
+
+          print(
+              "不正組み合わせ:",
+              result["invalid_combination_count"]
+          )
+
+
+          print(
               "1-2-3:",
               result["odds_by_combination"].get(
                   "1-2-3"
@@ -1127,33 +1182,25 @@ jobs:
               )
 
 
-          expected = {
+          if result["numeric_odds_count"] != 120:
 
-              "1-2-3": 16.1,
-              "1-2-4": 27.7,
-              "1-2-5": 62.5
-
-          }
-
-
-          for key, value in expected.items():
-
-              actual = (
-                  result[
-                      "odds_by_combination"
-                  ].get(key)
+              raise SystemExit(
+                  "数値オッズ120個の取得に失敗しています"
               )
 
 
-              if actual != value:
+          if result["unique_combination_count"] != 120:
 
-                  raise SystemExit(
+              raise SystemExit(
+                  "3連単120通りが一意ではありません"
+              )
 
-                      f"{key} の確認に失敗: "
-                      f"期待={value}, "
-                      f"実際={actual}"
 
-                  )
+          if result["invalid_combination_count"] != 0:
+
+              raise SystemExit(
+                  "不正な3連単組み合わせがあります"
+              )
 
 
           print(
