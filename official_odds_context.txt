@@ -1,0 +1,323 @@
+ />リプレイ</a>
+	<a class="heading2_btn is-data" href="/owpc/pc/data/stadium?jcd=07">レース場<br />データ</a>
+		<p class="heading2_voteBtn"><a id="DpPcKaisaiHeader" href="/owpc/VoteConfirm.xhtml?authAfterTrans=stay&voteTagId=DpPcKaisaiHeader" class="btn is-type4_1" onFocus="this.blur()" >投票<i class="is-blank1"></i></a>
+		</p>	
+
+</div>
+				
+				<div class="contentsFrame1_inner">
+
+<div class="tab2 is-type1__3rdadd">
+		<ul class="tab2_tabs">
+					<li class="is-active2"><span class="tab2_inner">8月21日<span>初日</span></span></li>
+					<li><span class="tab2_inner">8月22日<span>２日目</span></span></li>
+					<li><span class="tab2_inner">8月23日<span>３日目</span></span></li>
+					<li><span class="tab2_inner">8月24日<span>最終日</span></span></li>
+		</ul>
+		
+	</div>
+
+	<div class="table1 h-mt10">
+		<table>
+			<colgroup span="1" style="width: 106px;"></colgroup>
+			<colgroup span="1" style="width: 48px;"></colgroup>
+				<colgroup span="1" style="width: 72px;"></colgroup>
+				<colgroup span="1" style="width: 72px;"></colgroup>
+				<colgroup span="1" style="width: 72px;"></colgroup>
+				<colgroup span="1" style="width: 72px;"></colgroup>
+				<colgroup span="1" style="width: 72px;"></colgroup>
+				<colgroup span="1" style="width: 72px;"></colgroup>
+				<colgroup span="1" style="width: 72px;"></colgroup>
+				<colgroup span="1" style="width: 72px;"></colgroup>
+				<colgroup span="1" style="width: 72px;"></colgroup>
+				<colgroup span="1" style="width: 72px;"></colgroup>
+				<colgroup span="1" style="width: 72px;"></colgroup>
+				<colgroup span="1" style="width: 72px;"></colgroup>
+			<thead class="is-fs13">
+				<tr>
+					<th class="is-fs14" colspan="2">レース</th>
+						<th class="is-thColor2"><a href="/owpc/pc/race/odds3t?rno=1&amp;jcd=07&amp;hd=20260821">1R</a></th>
+						<th class="is-thColor2"><a href="/owpc/pc/race/odds3t?rno=2&amp;jcd=07&amp;hd=20260821">2R</a></th>
+						<th class="is-thColor2"><a href="/owpc/pc/race/odds3t?rno=3&amp;jcd=07&amp;hd=20260821">3R</a></th>
+						<th class="is-thColor2"><a href="/owpc/pc/race/odds3t?rno=4&amp;jcd=07&amp;hd=20260821">4R</a></th>
+						<th class="is-thColor2"><a href="/owpc/pc/race/odds3t?rno=5&amp;jcd=07&amp;hd=20260821">5R</a></th>
+						<th class="is-thColor2"><a href="/owpc/pc/race/odds3t?rno=6&amp;jcd=07&amp;hd=20260821">6R</a></th>
+						<th><a href="/owpc/pc/race/odds3t?rno=7&amp;jcd=07&amp;hd=20260821">7R</a></th>
+						<th class="is-thColor2"><a href="/owpc/pc/race/odds3t?rno=8&amp;jcd=07&amp;hd=20260821">8R</a></th>
+						<th class="is-thColor3"><a href="/owpc/pc/race/odds3t?rno=9&amp;jcd=07&amp;hd=20260821">9R</a></th>
+						<th class="is-thColor3"><a href="/owpc/pc/race/odds3t?rno=10&amp;jcd=07&amp;hd=20260821">10R</a></th>
+						<th class="is-thColor3"><a href="/owpc/pc/race/odds3t?rno=11&amp;jcd=07&amp;hd=20260821">11R</a></th>
+						<th class="is-thColor3"><a href="/owpc/pc/race/odds3t?rno=12&amp;jcd=07&amp;hd=20260821">12R</a></th>
+				</tr>
+			</thead>
+			<tbody>
+				<tr>
+					<td class="is-fs14 is-thColor8 is-fBold" style="border-top: 1px solid #D5D6D7; line-height: 30px;" colspan="2">締切予定時刻</td>
+						<td class=" ">15:23</td>
+						<td class=" ">15:48</td>
+						<td class=" ">16:15</td>
+						<td class=" ">16:40</td>
+						<td class=" ">17:09</td>
+						<td class=" ">17:34</td>
+						<td class=" ">18:02</td>
+						<td class=" ">18:41</td>
+						<td class=" is-activeColor1">19:10</td>
+						<td class=" ">19:39</td>
+						<td class=" ">20:08</td>
+						<td class=" ">20:38</td>
+				</tr>
+			</tbody>
+		</table>
+	</div>
+
+<div class="title16__add2020">
+	<h3 class="title16_titleDetail__add2020">
+		予選　　　　　
+		1800m
+		
+	</h3>
+	<div class="title16_titleLabels__add2020">
+			<span class="label2 is-type2__add2020">進入固定</span>
+	</div>
+</div>
+<div class="tab3 is-type1__3rdadd">
+		<ul class="tab3_tabs">
+				<li><a href="/owpc/pc/race/racelist?rno=7&amp;jcd=07&amp;hd=20260821"><span>出走表</span></a></li>
+				<li class="is-active"><span><span>オッズ</span></span></li>
+				<li><a href="/owpc/pc/race/beforeinfo?rno=7&amp;jcd=07&amp;hd=20260821"><span>直前情報</span></a></li>
+				<li class="is-small"><a href="/owpc/pc/race/pcexpect?rno=7&amp;jcd=07&amp;hd=20260821"><span>コンピューター<br />予想
+					</span></a></li>
+				<li><a href="/owpc/pc/race/myexpect?rno=7&amp;jcd=07&amp;hd=20260821"><span>マイ予想</span></a></li>
+				<li><a href="/owpc/pc/race/raceresult?rno=7&amp;jcd=07&amp;hd=20260821"><span>結果</span></a></li>
+		</ul>
+		
+	</div>
+					
+					<div class="tab4">
+
+<ul class="tab4_tabs">
+		<li class="is-active"><span>3連単</span></li>
+		<li><a href="/owpc/pc/race/odds3f?rno=7&amp;jcd=07&amp;hd=20260821">3連複</a></li>
+		<li><a href="/owpc/pc/race/odds2tf?rno=7&amp;jcd=07&amp;hd=20260821">2連単・2連複</a></li>
+		<li><a href="/owpc/pc/race/oddsk?rno=7&amp;jcd=07&amp;hd=20260821">拡連複</a></li>
+		<li><a href="/owpc/pc/race/oddstf?rno=7&amp;jcd=07&amp;hd=20260821">単勝・複勝</a></li>
+</ul>
+									<p class="tab4_time">締切時オッズ</p>
+	
+					</div>
+					
+					<div class="title7">
+						<h3 class="title7_title">
+							<span class="title7_mainLabel">3連単オッズ</span>
+						</h3>
+					</div>
+						<div class="table1">
+							<table>
+										<colgroup span="1" style="width: 27px;"></colgroup>
+										<colgroup span="1" style="width: 27px;"></colgroup>
+										<colgroup span="1" style="width: 116px;"></colgroup>
+										<colgroup span="1" style="width: 27px;"></colgroup>
+										<colgroup span="1" style="width: 27px;"></colgroup>
+										<colgroup span="1" style="width: 116px;"></colgroup>
+										<colgroup span="1" style="width: 27px;"></colgroup>
+										<colgroup span="1" style="width: 27px;"></colgroup>
+										<colgroup span="1" style="width: 116px;"></colgroup>
+										<colgroup span="1" style="width: 27px;"></colgroup>
+										<colgroup span="1" style="width: 27px;"></colgroup>
+										<colgroup span="1" style="width: 116px;"></colgroup>
+										<colgroup span="1" style="width: 27px;"></colgroup>
+										<colgroup span="1" style="width: 27px;"></colgroup>
+										<colgroup span="1" style="width: 116px;"></colgroup>
+										<colgroup span="1" style="width: 26px;"></colgroup>
+										<colgroup span="1" style="width: 26px;"></colgroup>
+										<colgroup span="1" style="width: 116px;"></colgroup>
+    
+											<thead class="is-p15-7 is-fs14">
+												<tr>
+													<th class="is-boatColor1">1</th>
+													<th class="is-boatColor1 is-borderLeftNone" colspan="2">杉山　　正樹</th>
+													<th class="is-boatColor2">2</th>
+													<th class="is-boatColor2 is-borderLeftNone" colspan="2">渡　　　修平</th>
+													<th class="is-boatColor3">3</th>
+													<th class="is-boatColor3 is-borderLeftNone" colspan="2">長野　壮志郎</th>
+													<th class="is-boatColor4">4</th>
+													<th class="is-boatColor4 is-borderLeftNone" colspan="2">石原　　　光</th>
+													<th class="is-boatColor5">5</th>
+													<th class="is-boatColor5 is-borderLeftNone" colspan="2">松井　　貫太</th>
+													<th class="is-boatColor6">6</th>
+													<th class="is-boatColor6 is-borderLeftNone" colspan="2">日高　龍之介</th>
+												</tr>
+											</thead>
+    
+											<tbody class="is-p3-0">
+												<tr>
+													<td class="is-fs14 is-boatColor2 is-borderLeftNone" rowspan="4">2</td>
+													<td class="is-boatColor2">3</td>
+													<td class="oddsPoint ">16.1</td>
+													<td class="is-fs14 is-boatColor1" rowspan="4">1</td>
+													<td class="is-boatColor1">3</td>
+													<td class="oddsPoint ">268.4</td>
+													<td class="is-fs14 is-boatColor1" rowspan="4">1</td>
+													<td class="is-boatColor1">2</td>
+													<td class="oddsPoint ">77.6</td>
+													<td class="is-fs14 is-boatColor1" rowspan="4">1</td>
+													<td class="is-boatColor1">2</td>
+													<td class="oddsPoint ">117.7</td>
+													<td class="is-fs14 is-boatColor1" rowspan="4">1</td>
+													<td class="is-boatColor1">2</td>
+													<td class="oddsPoint ">542.0</td>
+													<td class="is-fs14 is-boatColor1" rowspan="4">1</td>
+													<td class="is-boatColor1">2</td>
+													<td class="oddsPoint is-fColor1">2067</td>
+												</tr>
+												<tr>
+													<td class="is-boatColor2">4</td>
+													<td class="oddsPoint ">27.7</td>
+													<td class="is-boatColor1">4</td>
+													<td class="oddsPoint ">449.1</td>
+													<td class="is-boatColor1">4</td>
+													<td class="oddsPoint ">25.0</td>
+													<td class="is-boatColor1">3</td>
+													<td class="oddsPoint ">30.5</td>
+													<td class="is-boatColor1">3</td>
+													<td class="oddsPoint ">243.3</td>
+													<td class="is-boatColor1">3</td>
+													<td class="oddsPoint is-fColor1">1906</td>
+												</tr>
+												<tr>
+													<td class="is-boatColor2">5</td>
+													<td class="oddsPoint ">62.5</td>
+													<td class="is-boatColor1">5</td>
+													<td class="oddsPoint ">682.1</td>
+													<td class="is-boatColor1">5</td>
+													<td class="oddsPoint ">40.8</td>
+													<td class="is-boatColor1">5</td>
+													<td class="oddsPoint ">42.5</td>
+													<td class="is-boatColor1">4</td>
+													<td class="oddsPoint ">225.5</td>
+													<td class="is-boatColor1">4</td>
+													<td class="oddsPoint is-fColor1">1603</td>
+												</tr>
+												<tr>
+													<td class="is-boatColor2">6</td>
+													<td class="oddsPoint ">157.6</td>
+													<td class="is-boatColor1">6</td>
+													<td class="oddsPoint is-fColor1">1039</td>
+													<td class="is-boatColor1">6</td>
+													<td class="oddsPoint ">142.3</td>
+													<td class="is-boatColor1">6</td>
+													<td class="oddsPoint ">143.3</td>
+													<td class="is-boatColor1">6</td>
+													<td class="oddsPoint ">579.6</td>
+													<td class="is-boatColor1">5</td>
+													<td class="oddsPoint is-fColor1">3036</td>
+												</tr>
+												<tr>
+													<td class="is-fs14 is-boatColor3 is-borderLeftNone" rowspan="4">3</td>
+													<td class="is-boatColor3">2</td>
+													<td class="oddsPoint ">9.5</td>
+													<td class="is-fs14 is-boatColor3" rowspan="4">3</td>
+													<td class="is-boatColor3">1</td>
+													<td class="oddsPoint ">461.8</td>
+													<td class="is-fs14 is-boatColor2" rowspan="4">2</td>
+													<td class="is-boatColor2">1</td>
+													<td class="oddsPoint ">258.7</td>
+													<td class="is-fs14 is-boatColor2" rowspan="4">2</td>
+													<td class="is-boatColor2">1</td>
+													<td class="oddsPoint ">373.7</td>
+													<td class="is-fs14 is-boatColor2" rowspan="4">2</td>
+													<td class="is-boatColor2">1</td>
+													<td class="oddsPoint is-fColor1">1356</td>
+													<td class="is-fs14 is-boatColor2" rowspan="4">2</td>
+													<td class="is-boatColor2">1</td>
+													<td class="oddsPoint is-fColor1">3267</td>
+												</tr>
+												<tr>
+													<td class="is-boatColor3">4</td>
+													<td class="oddsPoint ">4.3</td>
+													<td class="is-boatColor3">4</td>
+													<td class="oddsPoint ">932.4</td>
+													<td class="is-boatColor2">4</td>
+													<td class="oddsPoint ">429.4</td>
+													<td class="is-boatColor2">3</td>
+													<td class="oddsPoint ">623.8</td>
+													<td class="is-boatColor2">3</td>
+													<td class="oddsPoint is-fColor1">1885</td>
+													<td class="is-boatColor2">3</td>
+													<td class="oddsPoint is-fColor1">5815</td>
+												</tr>
+												<tr>
+													<td class="is-boatColor3">5</td>
+													<td class="oddsPoint ">8.3</td>
+													<td class="is-boatColor3">5</td>
+													<td class="oddsPoint is-fColor1">1389</td>
+													<td class="is-boatColor2">5</td>
+													<td class="oddsPoint ">649.8</td>
+													<td class="is-boatColor2">5</td>
+													<td class="oddsPoint ">542.9</td>
+													<td class="is-boatColor2">4</td>
+													<td class="oddsPoint is-fColor1">1485</td>
+													<td class="is-boatColor2">4</td>
+													<td class="oddsPoint is-fColor1">3899</td>
+												</tr>
+												<tr>
+													<td class="is-boatColor3">6</td>
+													<td class="oddsPoint ">37.6</td>
+													<td class="is-boatColor3">6</td>
+													<td class="oddsPoint is-fColor1">2812</td>
+													<td class="is-boatColor2">6</td>
+													<td class="oddsPoint is-fColor1">1361</td>
+													<td class="is-boatColor2">6</td>
+													<td class="oddsPoint ">915.0</td>
+													<td class="is-boatColor2">6</td>
+													<td class="oddsPoint is-fColor1">2416</td>
+													<td class="is-boatColor2">5</td>
+													<td class="oddsPoint is-fColor1">6354</td>
+												</tr>
+												<tr>
+													<td class="is-fs14 is-boatColor4 is-borderLeftNone" rowspan="4">4</td>
+													<td class="is-boatColor4">2</td>
+													<td class="oddsPoint ">22.3</td>
+													<td class="is-fs14 is-boatColor4" rowspan="4">4</td>
+													<td class="is-boatColor4">1</td>
+													<td class="oddsPoint ">649.8</td>
+													<td class="is-fs14 is-boatColor4" rowspan="4">4</td>
+													<td class="is-boatColor4">1</td>
+													<td class="oddsPoint ">68.2</td>
+													<td class="is-fs14 is-boatColor3" rowspan="4">3</td>
+													<td class="is-boatColor3">1</td>
+													<td class="oddsPoint ">77.4</td>
+													<td class="is-fs14 is-boatColor3" rowspan="4">3</td>
+													<td class="is-boatColor3">1</td>
+													<td class="oddsPoint ">377.4</td>
+													<td class="is-fs14 is-boatColor3" rowspan="4">3</td>
+													<td class="is-boatColor3">1</td>
+													<td class="oddsPoint is-fColor1">2105</td>
+												</tr>
+												<tr>
+													<td class="is-boatColor4">3</td>
+													<td class="oddsPoint ">6.3</td>
+													<td class="is-boatColor4">3</td>
+													<td class="oddsPoint ">945.2</td>
+													<td class="is-boatColor4">2</td>
+													<td class="oddsPoint ">294.2</td>
+													<td class="is-boatColor3">2</td>
+													<td class="oddsPoint ">441.6</td>
+													<td class="is-boatColor3">2</td>
+													<td class="oddsPoint is-fColor1">1383</td>
+													<td class="is-boatColor3">2</td>
+													<td class="oddsPoint is-fColor1">5045</td>
+												</tr>
+												<tr>
+													<td class="is-boatColor4">5</td>
+													<td class="oddsPoint ">11.8</td>
+													<td class="is-boatColor4">5</td>
+													<td class="oddsPoint is-fColor1">1261</td>
+													<td class="is-boatColor4">5</td>
+													<td class="oddsPoint ">135.3</td>
+													<td class="is-boatColor3">5</td>
+													<td class="oddsPoint ">165.6</td>
+													<td class="is-boatColor3">4</td>
+													<td class="oddsPoint ">569.0</td>
+													<td class="is-boatColor3">4</td>
+													<td class="oddsPoint
