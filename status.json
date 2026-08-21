@@ -1,0 +1,45 @@
+{
+  "generated_at": "2026-08-21T17:35:16.740907+09:00",
+  "date": "2026-08-21",
+  "sources": {
+    "tkz": {
+      "name": "exhibition_time",
+      "url": "https://boatracecsv.github.io/data/previews/tkz/2026/08/21.csv",
+      "downloaded": true,
+      "rows": 114,
+      "today_rows": 114
+    },
+    "stt": {
+      "name": "start_exhibition",
+      "url": "https://boatracecsv.github.io/data/previews/stt/2026/08/21.csv",
+      "downloaded": true,
+      "rows": 114,
+      "today_rows": 114
+    },
+    "sui": {
+      "name": "weather",
+      "url": "https://boatracecsv.github.io/data/previews/sui/2026/08/21.csv",
+      "downloaded": true,
+      "rows": 114,
+      "today_rows": 114
+    },
+    "od3": {
+      "name": "odds_3tan",
+      "url": "https://boatracecsv.github.io/data/previews/od3/2026/08/21.csv",
+      "downloaded": true,
+      "rows": 114,
+      "today_rows": 114
+    }
+  },
+  "total_races": 114,
+  "test_race": {
+    "race_code": "202608210706",
+    "exists": true,
+    "data_types": [
+      "exhibition_time",
+      "start_exhibition",
+      "weather",
+      "odds_3tan"
+    ]
+  }
+}
