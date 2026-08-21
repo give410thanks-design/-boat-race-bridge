@@ -1,4 +1,4 @@
-name: Official Odds HTML Debug Test
+name: Official Odds Test
 
 on:
   workflow_dispatch:
@@ -7,6 +7,7 @@ on:
         description: "場コード（蒲郡=07）"
         required: true
         default: "07"
+
       race_no:
         description: "レース番号"
         required: true
@@ -23,7 +24,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Get official BOAT RACE odds HTML
+      - name: Get official BOAT RACE odds
         env:
           VENUE_CODE: ${{ github.event.inputs.venue_code }}
           RACE_NO: ${{ github.event.inputs.race_no }}
@@ -37,6 +38,10 @@ jobs:
           from datetime import datetime, timezone, timedelta
           from pathlib import Path
 
+          # ==============================
+          # 日本時間
+          # ==============================
+
           JST = timezone(timedelta(hours=9))
           now = datetime.now(JST)
 
@@ -45,15 +50,23 @@ jobs:
 
           date_value = now.strftime("%Y%m%d")
 
+          # ==============================
+          # 公式BOAT RACE オッズページ
+          # ==============================
+
           url = (
               "https://www.boatrace.jp/owsp/sp/race/odds3t"
               f"?hd={date_value}&jcd={venue}&rno={race_no}"
           )
 
           print("================================")
-          print("Official BOAT RACE HTML Debug Test")
+          print("Official BOAT RACE Odds Test")
           print("URL:", url)
           print("================================")
+
+          # ==============================
+          # User-Agent
+          # ==============================
 
           request = urllib.request.Request(
               url,
@@ -67,6 +80,10 @@ jobs:
               }
           )
 
+          # ==============================
+          # 結果
+          # ==============================
+
           result = {
               "generated_at": now.isoformat(),
               "url": url,
@@ -75,16 +92,23 @@ jobs:
               "downloaded": False,
               "html_length": 0,
               "odds_table_found": False,
-              "odds3t_count": 0,
-              "odds3t123_count": 0,
-              "point_count": 0,
-              "odds_count": 0,
+              "odds_point_count": 0,
+              "numeric_odds_count": 0,
               "sample": {},
               "error": None
           }
 
           try:
-              with urllib.request.urlopen(request, timeout=30) as response:
+
+              # ==============================
+              # HTML取得
+              # ==============================
+
+              with urllib.request.urlopen(
+                  request,
+                  timeout=30
+              ) as response:
+
                   html = response.read().decode(
                       "utf-8",
                       errors="replace"
@@ -93,114 +117,136 @@ jobs:
               result["downloaded"] = True
               result["html_length"] = len(html)
 
-              print("")
               print("HTML取得成功")
               print("HTML文字数:", len(html))
 
-              # ==========================================
-              # GitHub Actionsが取得したHTMLをそのまま保存
-              # ==========================================
+              # ==============================
+              # オッズエリア確認
+              # ==============================
 
-              Path("debug_odds.html").write_text(
-                  html,
-                  encoding="utf-8"
-              )
+              if 'id="content_odds"' in html:
 
-              print("debug_odds.html を作成しました")
-
-              # ==========================================
-              # HTMLの中身を調査
-              # ==========================================
-
-              odds3t_count = html.count("odds3t")
-              odds3t123_count = html.count("odds3t123")
-              point_count = html.count('class="point"')
-              content_odds_count = html.count(
-                  'id="content_odds"'
-              )
-
-              result["odds3t_count"] = odds3t_count
-              result["odds3t123_count"] = odds3t123_count
-              result["point_count"] = point_count
-
-              if content_odds_count > 0:
                   result["odds_table_found"] = True
 
-              print("")
-              print("================================")
-              print("HTML構造チェック")
-              print("================================")
-              print("content_odds:", content_odds_count)
-              print("odds3t:", odds3t_count)
-              print("odds3t123:", odds3t123_count)
-              print('class="point":', point_count)
-              print("================================")
+                  print("オッズエリア: OK")
 
-              # ==========================================
-              # 現在の正規表現でも試しに取得
-              # ==========================================
+              else:
+
+                  print("オッズエリア: 見つかりません")
+
+              # ==============================
+              # oddsPoint を取得
+              #
+              # 例:
+              #
+              # <td class="oddsPoint">16.1</td>
+              #
+              # ==============================
 
               pattern = re.compile(
-                  r'id=["\']odds3t([1-6]{3})["\'][^>]*>([^<]+)<'
+                  r'<td[^>]*class=["\'][^"\']*oddsPoint[^"\']*["\'][^>]*>'
+                  r'\s*([^<]+?)\s*'
+                  r'</td>',
+                  re.IGNORECASE
               )
 
               matches = pattern.findall(html)
 
-              odds = {}
+              result["odds_point_count"] = len(matches)
 
-              for combination, value in matches:
-                  combination = combination.strip()
+              print("oddsPoint個数:", len(matches))
+
+              # ==============================
+              # 数字だけ取り出す
+              # ==============================
+
+              odds_values = []
+
+              for value in matches:
+
                   value = value.strip()
 
-                  if len(combination) != 3:
-                      continue
+                  # カンマ除去
+                  value = value.replace(",", "")
 
-                  if len(set(combination)) != 3:
-                      continue
-
+                  # 数値の場合だけ採用
                   try:
-                      odds[combination] = float(value)
+
+                      number = float(value)
+                      odds_values.append(number)
+
                   except ValueError:
-                      continue
 
-              result["odds_count"] = len(odds)
+                      pass
 
-              sample_keys = [
-                  "123",
-                  "124",
-                  "125",
-                  "126",
-                  "132",
-                  "134",
-                  "135",
-                  "136",
-                  "213",
-                  "214"
-              ]
+              result["numeric_odds_count"] = len(odds_values)
+
+              print(
+                  "数値として取得できたオッズ数:",
+                  len(odds_values)
+              )
+
+              # ==============================
+              # 最初の20件を確認用に保存
+              # ==============================
 
               result["sample"] = {
-                  key: odds[key]
-                  for key in sample_keys
-                  if key in odds
+                  str(index + 1): value
+                  for index, value in enumerate(
+                      odds_values[:20]
+                  )
               }
+
+              print("--------------------------------")
+              print("サンプル:")
+              print(
+                  json.dumps(
+                      result["sample"],
+                      ensure_ascii=False,
+                      indent=2
+                  )
+              )
+              print("--------------------------------")
+
+              # ==============================
+              # テスト判定
+              #
+              # 3連単は
+              #
+              # 6 × 5 × 4 = 120通り
+              #
+              # ==============================
+
+              if len(odds_values) != 120:
+
+                  raise RuntimeError(
+                      "3連単オッズを120個取得できませんでした: "
+                      f"{len(odds_values)}個"
+                  )
 
               print("")
               print("================================")
-              print("現在のオッズ取得方式")
-              print("================================")
-              print("取得したオッズ数:", len(odds))
-              print("サンプル:", result["sample"])
+              print("テスト成功")
+              print("3連単オッズ 120個を取得しました")
               print("================================")
 
           except Exception as e:
+
               result["error"] = str(e)
 
               print("")
-              print("取得エラー:", e)
+              print("================================")
+              print("テスト失敗")
+              print("エラー:", e)
+              print("================================")
 
-              raise
+          # ==============================
+          # JSON保存
+          # ==============================
 
-          Path("official_odds_debug.json").write_text(
+          Path(
+              "official_odds_test.json"
+          ).write_text(
               json.dumps(
                   result,
                   ensure_ascii=False,
@@ -209,41 +255,26 @@ jobs:
               encoding="utf-8"
           )
 
-          print("")
-          print("official_odds_debug.json を作成しました")
-          print("")
-          print("今回は120通り取得できなくても")
-          print("テストを失敗にはしません。")
-          print("HTMLそのものを調査するためのテストです。")
+          # ==============================
+          # エラーならActionsを赤にする
+          # ==============================
+
+          if result["error"] is not None:
+
+              raise SystemExit(1)
 
           PY
 
-      # ==========================================
-      # 取得したHTMLとJSONを保存
-      # ==========================================
-
-      - name: Upload debug files
-        uses: actions/upload-artifact@v4
-        with:
-          name: official-odds-debug
-          path: |
-            debug_odds.html
-            official_odds_debug.json
-
-      # ==========================================
-      # JSONだけGitHubに保存
-      # ==========================================
-
-      - name: Save debug result
+      - name: Save test result
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          git add -- official_odds_debug.json
+          git add -- official_odds_test.json
 
           if git diff --cached --quiet; then
             echo "変更なし"
           else
-            git commit -m "Debug official BOAT RACE odds HTML"
+            git commit -m "Test official BOAT RACE odds extraction"
             git push
           fi
