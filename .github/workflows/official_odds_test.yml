@@ -1,0 +1,140 @@
+name: Official Odds Test
+
+on:
+  workflow_dispatch:
+    inputs:
+      venue_code:
+        description: "場コード（蒲郡=07）"
+        required: true
+        default: "07"
+      race_no:
+        description: "レース番号"
+        required: true
+        default: "7"
+
+permissions:
+  contents: write
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Get official BOAT RACE odds
+        env:
+          VENUE_CODE: ${{ github.event.inputs.venue_code }}
+          RACE_NO: ${{ github.event.inputs.race_no }}
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          import re
+          import urllib.request
+          from datetime import datetime, timezone, timedelta
+          from pathlib import Path
+
+          JST = timezone(timedelta(hours=9))
+          now = datetime.now(JST)
+
+          venue = os.environ["VENUE_CODE"]
+          race_no = int(os.environ["RACE_NO"])
+
+          date_value = now.strftime("%Y%m%d")
+
+          url = (
+              "https://boatrace.jp/owpc/pc/race/odds3t"
+              f"?hd={date_value}&jcd={venue}&rno={race_no}"
+          )
+
+          print("URL:", url)
+
+          request = urllib.request.Request(
+              url,
+              headers={
+                  "User-Agent": (
+                      "Mozilla/5.0 "
+                      "(X11; Linux x86_64) "
+                      "AppleWebKit/537.36 "
+                      "Chrome/131.0 Safari/537.36"
+                  )
+              }
+          )
+
+          result = {
+              "generated_at": now.isoformat(),
+              "url": url,
+              "venue_code": venue,
+              "race_no": race_no,
+              "downloaded": False,
+              "html_length": 0,
+              "odds_found": False,
+              "odds_sample": [],
+              "error": None
+          }
+
+          try:
+              with urllib.request.urlopen(request, timeout=30) as response:
+                  html = response.read().decode("utf-8", errors="replace")
+
+              result["downloaded"] = True
+              result["html_length"] = len(html)
+
+              print("HTML取得成功")
+              print("HTML文字数:", len(html))
+
+              # HTML内に3連単オッズ表が存在するか確認
+              if "3連単オッズ" in html:
+                  result["odds_found"] = True
+                  print("3連単オッズ表を検出しました")
+              else:
+                  print("3連単オッズ表を検出できませんでした")
+
+              # ページ内の倍率らしき数値をサンプル取得
+              numbers = re.findall(
+                  r'(?<![\d.])\d{1,4}(?:\.\d)?(?![\d.])',
+                  html
+              )
+
+              result["odds_sample"] = numbers[:30]
+
+          except Exception as e:
+              result["error"] = str(e)
+              print("取得エラー:", e)
+
+          Path("official_odds_test.json").write_text(
+              json.dumps(
+                  result,
+                  ensure_ascii=False,
+                  indent=2
+              ),
+              encoding="utf-8"
+          )
+
+          print("================================")
+          print("Official BOAT RACE Odds Test")
+          print("取得時刻:", now.isoformat())
+          print("場コード:", venue)
+          print("レース:", race_no)
+          print("取得成功:", result["downloaded"])
+          print("オッズ検出:", result["odds_found"])
+          print("HTML文字数:", result["html_length"])
+          print("エラー:", result["error"])
+          print("================================")
+          PY
+
+      - name: Save test result
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add official_odds_test.json
+
+          if git diff --cached --quiet; then
+            echo "変更なし"
+          else
+            git commit -m "Test official BOAT RACE odds"
+            git push
+          fi
