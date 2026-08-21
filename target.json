@@ -1,14 +1,14 @@
 {
-  "generated_at": "2026-08-22T08:21:29.356767+09:00",
+  "generated_at": "2026-08-22T08:51:39.284407+09:00",
   "date": "2026-08-22",
-  "venue": "芦屋",
-  "race_no": "1",
-  "race_code": "202608222101",
+  "venue": "",
+  "race_no": "",
+  "race_code": null,
   "exists": false,
   "data": {},
   "official_odds": {},
   "official_odds_count": 0,
   "official_odds_success": false,
   "official_odds_error": null,
-  "error": "指定レースのデータがありません"
+  "error": null
 }

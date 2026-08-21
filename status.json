@@ -1,31 +1,35 @@
 {
-  "generated_at": "2026-08-22T08:21:29.356767+09:00",
+  "generated_at": "2026-08-22T08:51:39.284407+09:00",
   "date": "2026-08-22",
   "sources": {
     "tkz": {
       "name": "exhibition_time",
       "url": "https://boatracecsv.github.io/data/previews/tkz/2026/08/22.csv",
-      "downloaded": false,
-      "error": "HTTP Error 404: Not Found"
+      "downloaded": true,
+      "rows": 3,
+      "today_rows": 3
     },
     "stt": {
       "name": "start_exhibition",
       "url": "https://boatracecsv.github.io/data/previews/stt/2026/08/22.csv",
-      "downloaded": false,
-      "error": "HTTP Error 404: Not Found"
+      "downloaded": true,
+      "rows": 3,
+      "today_rows": 3
     },
     "sui": {
       "name": "weather",
       "url": "https://boatracecsv.github.io/data/previews/sui/2026/08/22.csv",
-      "downloaded": false,
-      "error": "HTTP Error 404: Not Found"
+      "downloaded": true,
+      "rows": 3,
+      "today_rows": 3
     },
     "od3": {
       "name": "odds_3tan",
       "url": "https://boatracecsv.github.io/data/previews/od3/2026/08/22.csv",
-      "downloaded": false,
-      "error": "HTTP Error 404: Not Found"
+      "downloaded": true,
+      "rows": 3,
+      "today_rows": 3
     }
   },
-  "total_races": 0
+  "total_races": 3
 }
