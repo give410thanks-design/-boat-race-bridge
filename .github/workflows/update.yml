@@ -1,4 +1,4 @@
-name: BOAT RACE Bridge Test
+name: BOAT RACE Bridge
 
 on:
   workflow_dispatch:
@@ -13,30 +13,58 @@ on:
         default: "4"
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
-  diagnose:
+  update:
     runs-on: ubuntu-latest
 
     steps:
-      - name: CSV実データ診断
+
+      # ========================================
+      # GitHubリポジトリ取得
+      # ========================================
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+
+      # ========================================
+      # データ取得・JSON生成
+      # ========================================
+
+      - name: データ取得・JSON生成
         env:
           VENUE: ${{ github.event.inputs.venue }}
           RACE_NO: ${{ github.event.inputs.race_no }}
+
         run: |
+
           python - <<'PY'
+
           import csv
-          import urllib.request
-          import os
           import json
+          import os
+          import urllib.request
+
           from datetime import datetime, timezone, timedelta
+          from pathlib import Path
+
+
+          # ========================================
+          # 日本時間
+          # ========================================
 
           JST = timezone(timedelta(hours=9))
           now = datetime.now(JST)
 
           date_path = now.strftime("%Y/%m/%d")
           date_value = now.strftime("%Y-%m-%d")
+
+
+          # ========================================
+          # 場コード
+          # ========================================
 
           venues = {
               "桐生": "01",
@@ -65,28 +93,33 @@ jobs:
               "大村": "24"
           }
 
-          sources = {
-              "tkz": "展示タイム",
-              "stt": "スタート展示",
-              "sui": "天候・水面",
-              "od3": "3連単オッズ"
-          }
 
-          venue = os.environ.get("VENUE", "").strip()
-          race_no = os.environ.get("RACE_NO", "").strip()
+          # ========================================
+          # 入力
+          # ========================================
 
-          venue_code = venues.get(venue)
+          venue = os.environ["VENUE"].strip()
+          race_no = os.environ["RACE_NO"].strip()
 
-          if venue_code is None:
-              raise SystemExit("場名が認識できません: " + venue)
+          if venue not in venues:
+              raise SystemExit(
+                  "場名が認識できません: " + venue
+              )
 
           try:
               race_number = int(race_no)
           except ValueError:
-              raise SystemExit("レース番号が不正です")
+              raise SystemExit(
+                  "レース番号が不正です"
+              )
 
-          if race_number < 1 or race_number > 12:
-              raise SystemExit("レース番号は1〜12で指定してください")
+          if not 1 <= race_number <= 12:
+              raise SystemExit(
+                  "レース番号は1〜12で指定してください"
+              )
+
+
+          venue_code = venues[venue]
 
           target_code = (
               date_value.replace("-", "")
@@ -94,8 +127,9 @@ jobs:
               + f"{race_number:02d}"
           )
 
+
           print("========================================")
-          print("BOAT RACE BRIDGE 診断")
+          print("BOAT RACE BRIDGE")
           print("========================================")
           print("取得時刻:", now.isoformat())
           print("開催日:", date_value)
@@ -105,7 +139,14 @@ jobs:
           print("レースコード:", target_code)
           print("========================================")
 
+
+          # ========================================
+          # 基本JSON
+          # ========================================
+
           result = {
+              "generated_at": now.isoformat(),
+
               "race": {
                   "date": date_value,
                   "venue": venue,
@@ -113,8 +154,16 @@ jobs:
                   "race_no": race_number,
                   "race_code": target_code
               },
-              "sources": {}
+
+              "sources": {},
+
+              "summary": {}
           }
+
+
+          # ========================================
+          # CSV取得関数
+          # ========================================
 
           def get_row(source):
 
@@ -125,6 +174,10 @@ jobs:
                   + date_path
                   + ".csv"
               )
+
+              print("")
+              print("取得:", source)
+              print("URL:", url)
 
               try:
 
@@ -151,11 +204,28 @@ jobs:
                       ).strip()
 
                       if code == target_code:
+
+                          print(
+                              source,
+                              "取得成功"
+                          )
+
                           return row, len(rows), None
+
+                  print(
+                      source,
+                      "対象レースなし"
+                  )
 
                   return None, len(rows), None
 
               except Exception as e:
+
+                  print(
+                      source,
+                      "取得エラー:",
+                      repr(e)
+                  )
 
                   return None, 0, (
                       type(e).__name__
@@ -163,9 +233,10 @@ jobs:
                       + str(e)
                   )
 
-          # ----------------------------------------
+
+          # ========================================
           # 展示タイム
-          # ----------------------------------------
+          # ========================================
 
           row, total, error = get_row("tkz")
 
@@ -184,25 +255,34 @@ jobs:
               for n in range(1, 7):
 
                   tkz["boats"][str(n)] = {
-                      "weight": row.get(
-                          f"艇{n}_体重(kg)"
-                      ),
-                      "weight_adjust": row.get(
-                          f"艇{n}_体重調整(kg)"
-                      ),
-                      "exhibition_time": row.get(
-                          f"艇{n}_展示タイム"
-                      ),
-                      "tilt": row.get(
-                          f"艇{n}_チルト"
-                      )
+
+                      "weight":
+                          row.get(
+                              f"艇{n}_体重(kg)"
+                          ),
+
+                      "weight_adjust":
+                          row.get(
+                              f"艇{n}_体重調整(kg)"
+                          ),
+
+                      "exhibition_time":
+                          row.get(
+                              f"艇{n}_展示タイム"
+                          ),
+
+                      "tilt":
+                          row.get(
+                              f"艇{n}_チルト"
+                          )
                   }
 
           result["sources"]["tkz"] = tkz
 
-          # ----------------------------------------
+
+          # ========================================
           # スタート展示
-          # ----------------------------------------
+          # ========================================
 
           row, total, error = get_row("stt")
 
@@ -221,19 +301,24 @@ jobs:
               for n in range(1, 7):
 
                   stt["boats"][str(n)] = {
-                      "course": row.get(
-                          f"艇{n}_コース"
-                      ),
-                      "start_exhibition": row.get(
-                          f"艇{n}_スタート展示"
-                      )
+
+                      "course":
+                          row.get(
+                              f"艇{n}_コース"
+                          ),
+
+                      "start_exhibition":
+                          row.get(
+                              f"艇{n}_スタート展示"
+                          )
                   }
 
           result["sources"]["stt"] = stt
 
-          # ----------------------------------------
+
+          # ========================================
           # 天候・水面
-          # ----------------------------------------
+          # ========================================
 
           row, total, error = get_row("sui")
 
@@ -247,7 +332,6 @@ jobs:
 
           if row:
 
-              # レース識別情報以外を取得
               data = {}
 
               for key, value in row.items():
@@ -260,16 +344,20 @@ jobs:
                   ):
                       continue
 
-                  if value is not None and str(value).strip() != "":
+                  if (
+                      value is not None
+                      and str(value).strip() != ""
+                  ):
                       data[key] = value
 
               sui["data"] = data
 
           result["sources"]["sui"] = sui
 
-          # ----------------------------------------
+
+          # ========================================
           # 3連単オッズ
-          # ----------------------------------------
+          # ========================================
 
           row, total, error = get_row("od3")
 
@@ -295,23 +383,36 @@ jobs:
                   ):
                       continue
 
-                  if value is not None and str(value).strip() != "":
+                  if (
+                      value is not None
+                      and str(value).strip() != ""
+                  ):
                       data[key] = value
 
               od3["data"] = data
 
           result["sources"]["od3"] = od3
 
-          # ----------------------------------------
-          # 簡易サマリー作成
-          # ----------------------------------------
+
+          # ========================================
+          # サマリー
+          # ========================================
 
           summary = {
+
               "exhibition_time": {},
+
               "start_exhibition": {},
+
               "fastest_exhibition": None,
+
               "fastest_start": None
           }
+
+
+          # ----------------------------------------
+          # 展示タイム最速
+          # ----------------------------------------
 
           if tkz.get("available"):
 
@@ -319,7 +420,13 @@ jobs:
 
               for boat, data in tkz["boats"].items():
 
-                  value = data.get("exhibition_time")
+                  value = data.get(
+                      "exhibition_time"
+                  )
+
+                  summary[
+                      "exhibition_time"
+                  ][boat] = value
 
                   if value not in (
                       None,
@@ -328,25 +435,38 @@ jobs:
                   ):
 
                       try:
+
                           times.append(
                               (
                                   boat,
                                   float(value)
                               )
                           )
+
                       except ValueError:
                           pass
 
-                  summary["exhibition_time"][boat] = value
-
               if times:
 
-                  times.sort(key=lambda x: x[1])
+                  times.sort(
+                      key=lambda x: x[1]
+                  )
 
-                  summary["fastest_exhibition"] = {
-                      "boat": times[0][0],
-                      "time": times[0][1]
+                  summary[
+                      "fastest_exhibition"
+                  ] = {
+
+                      "boat":
+                          times[0][0],
+
+                      "time":
+                          times[0][1]
                   }
+
+
+          # ----------------------------------------
+          # ST展示最速
+          # ----------------------------------------
 
           if stt.get("available"):
 
@@ -358,7 +478,9 @@ jobs:
                       "start_exhibition"
                   )
 
-                  summary["start_exhibition"][boat] = value
+                  summary[
+                      "start_exhibition"
+                  ][boat] = value
 
                   if value not in (
                       None,
@@ -367,104 +489,198 @@ jobs:
                   ):
 
                       try:
+
                           starts.append(
                               (
                                   boat,
                                   float(value)
                               )
                           )
+
                       except ValueError:
                           pass
 
               if starts:
 
-                  # STは数値が小さいほど速い
-                  starts.sort(key=lambda x: x[1])
+                  starts.sort(
+                      key=lambda x: x[1]
+                  )
 
-                  summary["fastest_start"] = {
-                      "boat": starts[0][0],
-                      "start": starts[0][1]
+                  summary[
+                      "fastest_start"
+                  ] = {
+
+                      "boat":
+                          starts[0][0],
+
+                      "start":
+                          starts[0][1]
                   }
+
 
           result["summary"] = summary
 
-          # ----------------------------------------
-          # 最終出力
-          # ----------------------------------------
 
-          print("")
-          print("========================================")
-          print("【取得状況】")
-          print("========================================")
+          # ========================================
+          # 取得状況
+          # ========================================
 
-          for source, label in sources.items():
+          result["status"] = {
 
-              available = result["sources"][source].get(
-                  "available",
-                  False
-              )
+              "tkz":
+                  tkz["available"],
 
-              print(
-                  label + ":",
-                  "取得成功" if available else "取得できず"
-              )
+              "stt":
+                  stt["available"],
 
-          print("")
-          print("========================================")
-          print("【展示タイム】")
-          print("========================================")
+              "sui":
+                  sui["available"],
 
-          for boat, value in summary["exhibition_time"].items():
-              print(
-                  f"{boat}号艇:",
-                  value
-              )
+              "od3":
+                  od3["available"]
+          }
 
-          if summary["fastest_exhibition"]:
 
-              print(
-                  "展示タイム最速:",
-                  summary["fastest_exhibition"]["boat"]
-                  + "号艇",
-                  summary["fastest_exhibition"]["time"]
-              )
+          # ========================================
+          # JSON保存
+          # ========================================
 
-          print("")
-          print("========================================")
-          print("【スタート展示】")
-          print("========================================")
+          output_path = Path(
+              "boat_race_context.json"
+          )
 
-          for boat, value in summary["start_exhibition"].items():
-              print(
-                  f"{boat}号艇:",
-                  value
-              )
+          output_path.write_text(
 
-          if summary["fastest_start"]:
-
-              print(
-                  "ST展示最速:",
-                  summary["fastest_start"]["boat"]
-                  + "号艇",
-                  summary["fastest_start"]["start"]
-              )
-
-          print("")
-          print("========================================")
-          print("【予想用JSON】")
-          print("========================================")
-
-          print(
               json.dumps(
                   result,
                   ensure_ascii=False,
-                  separators=(",", ":")
-              )
+                  indent=2
+              ),
+
+              encoding="utf-8"
           )
+
 
           print("")
           print("========================================")
-          print("診断終了")
+          print("JSON保存完了")
           print("========================================")
+          print(
+              "ファイル:",
+              output_path
+          )
+          print(
+              "サイズ:",
+              output_path.stat().st_size,
+              "bytes"
+          )
+          print("========================================")
+
+
+          PY
+
+
+      # ========================================
+      # GitHubへ保存
+      # ========================================
+
+      - name: JSONをGitHubへ保存
+        run: |
+
+          git config user.name \
+            "github-actions[bot]"
+
+          git config user.email \
+            "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add boat_race_context.json
+
+          if git diff --cached --quiet; then
+
+            echo "JSONに変更なし"
+
+          else
+
+            git commit \
+              -m "Update boat race context"
+
+            git push
+
+          fi
+
+
+      # ========================================
+      # 保存確認
+      # ========================================
+
+      - name: 保存確認
+        run: |
+
+          echo "========================================"
+          echo "BOAT RACE CONTEXT 保存確認"
+          echo "========================================"
+
+          ls -lh boat_race_context.json
+
+          echo ""
+
+          python - <<'PY'
+
+          import json
+
+          with open(
+              "boat_race_context.json",
+              encoding="utf-8"
+          ) as f:
+
+              data = json.load(f)
+
+          print(
+              "開催日:",
+              data["race"]["date"]
+          )
+
+          print(
+              "場:",
+              data["race"]["venue"]
+          )
+
+          print(
+              "R:",
+              data["race"]["race_no"]
+          )
+
+          print(
+              "レースコード:",
+              data["race"]["race_code"]
+          )
+
+          print("")
+
+          print(
+              "展示タイム:",
+              data["status"]["tkz"]
+          )
+
+          print(
+              "スタート展示:",
+              data["status"]["stt"]
+          )
+
+          print(
+              "天候・水面:",
+              data["status"]["sui"]
+          )
+
+          print(
+              "3連単オッズ:",
+              data["status"]["od3"]
+          )
+
+          print("")
+
+          print(
+              "JSON確認: OK"
+          )
 
           PY
