@@ -7,6 +7,7 @@ on:
         description: "場名"
         required: true
         default: "唐津"
+
       race_no:
         description: "レース番号"
         required: true
@@ -56,6 +57,7 @@ jobs:
           # ========================================
 
           JST = timezone(timedelta(hours=9))
+
           now = datetime.now(JST)
 
           date_path = now.strftime("%Y/%m/%d")
@@ -99,27 +101,38 @@ jobs:
           # ========================================
 
           venue = os.environ["VENUE"].strip()
+
           race_no = os.environ["RACE_NO"].strip()
 
+
           if venue not in venues:
+
               raise SystemExit(
-                  "場名が認識できません: " + venue
+                  "場名が認識できません: "
+                  + venue
               )
 
+
           try:
+
               race_number = int(race_no)
+
           except ValueError:
+
               raise SystemExit(
                   "レース番号が不正です"
               )
 
+
           if not 1 <= race_number <= 12:
+
               raise SystemExit(
                   "レース番号は1〜12で指定してください"
               )
 
 
           venue_code = venues[venue]
+
 
           target_code = (
               date_value.replace("-", "")
@@ -131,12 +144,37 @@ jobs:
           print("========================================")
           print("BOAT RACE BRIDGE")
           print("========================================")
-          print("取得時刻:", now.isoformat())
-          print("開催日:", date_value)
-          print("場:", venue)
-          print("場コード:", venue_code)
-          print("R:", race_number)
-          print("レースコード:", target_code)
+
+          print(
+              "取得時刻:",
+              now.isoformat()
+          )
+
+          print(
+              "開催日:",
+              date_value
+          )
+
+          print(
+              "場:",
+              venue
+          )
+
+          print(
+              "場コード:",
+              venue_code
+          )
+
+          print(
+              "R:",
+              race_number
+          )
+
+          print(
+              "レースコード:",
+              target_code
+          )
+
           print("========================================")
 
 
@@ -145,14 +183,26 @@ jobs:
           # ========================================
 
           result = {
-              "generated_at": now.isoformat(),
+
+              "generated_at":
+                  now.isoformat(),
 
               "race": {
-                  "date": date_value,
-                  "venue": venue,
-                  "venue_code": venue_code,
-                  "race_no": race_number,
-                  "race_code": target_code
+
+                  "date":
+                      date_value,
+
+                  "venue":
+                      venue,
+
+                  "venue_code":
+                      venue_code,
+
+                  "race_no":
+                      race_number,
+
+                  "race_code":
+                      target_code
               },
 
               "sources": {},
@@ -165,244 +215,198 @@ jobs:
           # CSV取得関数
           # ========================================
 
-def get_row(source):
+          def get_row(source):
 
-    url = (
-        "https://boatracecsv.github.io/data/previews/"
-        + source
-        + "/"
-        + date_path
-        + ".csv"
-    )
+              url = (
+                  "https://boatracecsv.github.io/data/previews/"
+                  + source
+                  + "/"
+                  + date_path
+                  + ".csv"
+              )
 
-    print("")
-    print("取得:", source)
-    print("URL:", url)
 
-    try:
+              print("")
+              print("取得:", source)
+              print("URL:", url)
 
-        with urllib.request.urlopen(
-            url,
-            timeout=30
-        ) as response:
 
-            text = response.read().decode(
-                "utf-8-sig"
-            )
+              try:
 
-        reader = csv.DictReader(
-            text.splitlines()
-        )
+                  # ----------------------------------------
+                  # CSV取得
+                  # ----------------------------------------
 
-        rows = list(reader)
+                  with urllib.request.urlopen(
+                      url,
+                      timeout=30
+                  ) as response:
 
-        print(
-            source,
-            "CSV行数:",
-            len(rows)
-        )
+                      text = response.read().decode(
+                          "utf-8-sig"
+                      )
 
-        print(
-            source,
-            "検索対象レースコード:",
-            target_code
-        )
 
-        # ----------------------------------------
-        # CSV内の実際のレースコードを診断
-        # ----------------------------------------
+                  # ----------------------------------------
+                  # CSV解析
+                  # ----------------------------------------
 
-        race_codes = []
+                  reader = csv.DictReader(
+                      text.splitlines()
+                  )
 
-        for row in rows:
+                  rows = list(reader)
 
-            code = (
-                row.get("レースコード")
-                or ""
-            ).strip()
 
-            if code:
-                race_codes.append(code)
+                  print(
+                      source,
+                      "CSV行数:",
+                      len(rows)
+                  )
 
-        print(
-            source,
-            "CSV内レースコード一覧:"
-        )
 
-        for code in race_codes:
-            print(
-                "  ",
-                repr(code)
-            )
+                  print(
+                      source,
+                      "検索対象レースコード:",
+                      repr(target_code)
+                  )
 
-        # ----------------------------------------
-        # 対象レース検索
-        # ----------------------------------------
 
-        for row in rows:
+                  # ----------------------------------------
+                  # CSVヘッダー確認
+                  # ----------------------------------------
 
-            code = (
-                row.get("レースコード")
-                or ""
-            ).strip()
+                  if reader.fieldnames:
 
-            if code == target_code:
+                      print(
+                          source,
+                          "CSVヘッダー確認:"
+                      )
 
-                print(
-                    source,
-                    "取得成功"
-                )
+                      print(
+                          reader.fieldnames
+                      )
 
-                return row, len(rows), None
 
-        print(
-            source,
-            "対象レースなし"
-        )
+                  # ----------------------------------------
+                  # CSV内のレースコード診断
+                  # ----------------------------------------
 
-        return None, len(rows), None
+                  race_codes = []
 
-    except Exception as e:
 
-        print(
-            source,
-            "取得エラー:",
-            repr(e)
-        )
+                  for row in rows:
 
-        return None, 0, (
-            type(e).__name__
-            + ": "
-            + str(e)
-        )
-          
+                      code = (
+                          row.get("レースコード")
+                          or ""
+                      ).strip()
+
+
+                      if code:
+
+                          race_codes.append(
+                              code
+                          )
+
+
+                  print(
+                      source,
+                      "CSV内レースコード一覧:"
+                  )
+
+
+                  for code in race_codes:
+
+                      print(
+                          "  ",
+                          repr(code)
+                      )
+
+
+                  # ----------------------------------------
+                  # 対象レース検索
+                  # ----------------------------------------
+
+                  for row in rows:
+
+                      code = (
+                          row.get("レースコード")
+                          or ""
+                      ).strip()
+
+
+                      if code == target_code:
+
+                          print(
+                              source,
+                              "取得成功"
+                          )
+
+                          return (
+                              row,
+                              len(rows),
+                              None
+                          )
+
+
+                  print(
+                      source,
+                      "対象レースなし"
+                  )
+
+
+                  return (
+                      None,
+                      len(rows),
+                      None
+                  )
+
+
+              except Exception as e:
+
+                  print(
+                      source,
+                      "取得エラー:",
+                      repr(e)
+                  )
+
+
+                  return (
+                      None,
+                      0,
+                      type(e).__name__
+                      + ": "
+                      + str(e)
+                  )
+
 
           # ========================================
-          # def get_row(source):
-
-    url = (
-        "https://boatracecsv.github.io/data/previews/"
-        + source
-        + "/"
-        + date_path
-        + ".csv"
-    )
-
-    print("")
-    print("取得:", source)
-    print("URL:", url)
-
-    try:
-
-        with urllib.request.urlopen(
-            url,
-            timeout=30
-        ) as response:
-
-            text = response.read().decode(
-                "utf-8-sig"
-            )
-
-        reader = csv.DictReader(
-            text.splitlines()
-        )
-
-        rows = list(reader)
-
-        print(
-            source,
-            "CSV行数:",
-            len(rows)
-        )
-
-        print(
-            source,
-            "検索対象レースコード:",
-            target_code
-        )
-
-        # ----------------------------------------
-        # CSV内の実際のレースコードを診断
-        # ----------------------------------------
-
-        race_codes = []
-
-        for row in rows:
-
-            code = (
-                row.get("レースコード")
-                or ""
-            ).strip()
-
-            if code:
-                race_codes.append(code)
-
-        print(
-            source,
-            "CSV内レースコード一覧:"
-        )
-
-        for code in race_codes:
-            print(
-                "  ",
-                repr(code)
-            )
-
-        # ----------------------------------------
-        # 対象レース検索
-        # ----------------------------------------
-
-        for row in rows:
-
-            code = (
-                row.get("レースコード")
-                or ""
-            ).strip()
-
-            if code == target_code:
-
-                print(
-                    source,
-                    "取得成功"
-                )
-
-                return row, len(rows), None
-
-        print(
-            source,
-            "対象レースなし"
-        )
-
-        return None, len(rows), None
-
-    except Exception as e:
-
-        print(
-            source,
-            "取得エラー:",
-            repr(e)
-        )
-
-        return None, 0, (
-            type(e).__name__
-            + ": "
-            + str(e)
-        )展示タイム
+          # 展示タイム
           # ========================================
 
           row, total, error = get_row("tkz")
 
+
           tkz = {
-              "available": row is not None,
-              "csv_rows": total
+
+              "available":
+                  row is not None,
+
+              "csv_rows":
+                  total
           }
 
+
           if error:
+
               tkz["error"] = error
+
 
           if row:
 
               tkz["boats"] = {}
+
 
               for n in range(1, 7):
 
@@ -429,6 +433,7 @@ def get_row(source):
                           )
                   }
 
+
           result["sources"]["tkz"] = tkz
 
 
@@ -438,17 +443,26 @@ def get_row(source):
 
           row, total, error = get_row("stt")
 
+
           stt = {
-              "available": row is not None,
-              "csv_rows": total
+
+              "available":
+                  row is not None,
+
+              "csv_rows":
+                  total
           }
 
+
           if error:
+
               stt["error"] = error
+
 
           if row:
 
               stt["boats"] = {}
+
 
               for n in range(1, 7):
 
@@ -465,6 +479,7 @@ def get_row(source):
                           )
                   }
 
+
           result["sources"]["stt"] = stt
 
 
@@ -474,17 +489,26 @@ def get_row(source):
 
           row, total, error = get_row("sui")
 
+
           sui = {
-              "available": row is not None,
-              "csv_rows": total
+
+              "available":
+                  row is not None,
+
+              "csv_rows":
+                  total
           }
 
+
           if error:
+
               sui["error"] = error
+
 
           if row:
 
               data = {}
+
 
               for key, value in row.items():
 
@@ -494,15 +518,20 @@ def get_row(source):
                       "レース場",
                       "レース回"
                   ):
+
                       continue
+
 
                   if (
                       value is not None
                       and str(value).strip() != ""
                   ):
+
                       data[key] = value
 
+
               sui["data"] = data
+
 
           result["sources"]["sui"] = sui
 
@@ -513,17 +542,26 @@ def get_row(source):
 
           row, total, error = get_row("od3")
 
+
           od3 = {
-              "available": row is not None,
-              "csv_rows": total
+
+              "available":
+                  row is not None,
+
+              "csv_rows":
+                  total
           }
 
+
           if error:
+
               od3["error"] = error
+
 
           if row:
 
               data = {}
+
 
               for key, value in row.items():
 
@@ -533,15 +571,20 @@ def get_row(source):
                       "レース場",
                       "レース回"
                   ):
+
                       continue
+
 
                   if (
                       value is not None
                       and str(value).strip() != ""
                   ):
+
                       data[key] = value
 
+
               od3["data"] = data
+
 
           result["sources"]["od3"] = od3
 
@@ -562,13 +605,14 @@ def get_row(source):
           }
 
 
-          # ----------------------------------------
+          # ========================================
           # 展示タイム最速
-          # ----------------------------------------
+          # ========================================
 
           if tkz.get("available"):
 
               times = []
+
 
               for boat, data in tkz["boats"].items():
 
@@ -576,9 +620,11 @@ def get_row(source):
                       "exhibition_time"
                   )
 
+
                   summary[
                       "exhibition_time"
                   ][boat] = value
+
 
                   if value not in (
                       None,
@@ -596,13 +642,16 @@ def get_row(source):
                           )
 
                       except ValueError:
+
                           pass
+
 
               if times:
 
                   times.sort(
                       key=lambda x: x[1]
                   )
+
 
                   summary[
                       "fastest_exhibition"
@@ -616,13 +665,14 @@ def get_row(source):
                   }
 
 
-          # ----------------------------------------
+          # ========================================
           # ST展示最速
-          # ----------------------------------------
+          # ========================================
 
           if stt.get("available"):
 
               starts = []
+
 
               for boat, data in stt["boats"].items():
 
@@ -630,9 +680,11 @@ def get_row(source):
                       "start_exhibition"
                   )
 
+
                   summary[
                       "start_exhibition"
                   ][boat] = value
+
 
                   if value not in (
                       None,
@@ -650,13 +702,16 @@ def get_row(source):
                           )
 
                       except ValueError:
+
                           pass
+
 
               if starts:
 
                   starts.sort(
                       key=lambda x: x[1]
                   )
+
 
                   summary[
                       "fastest_start"
@@ -701,6 +756,7 @@ def get_row(source):
               "boat_race_context.json"
           )
 
+
           output_path.write_text(
 
               json.dumps(
@@ -717,15 +773,18 @@ def get_row(source):
           print("========================================")
           print("JSON保存完了")
           print("========================================")
+
           print(
               "ファイル:",
               output_path
           )
+
           print(
               "サイズ:",
               output_path.stat().st_size,
               "bytes"
           )
+
           print("========================================")
 
 
@@ -745,7 +804,9 @@ def get_row(source):
           git config user.email \
             "41898282+github-actions[bot]@users.noreply.github.com"
 
+
           git add boat_race_context.json
+
 
           if git diff --cached --quiet; then
 
@@ -772,13 +833,17 @@ def get_row(source):
           echo "BOAT RACE CONTEXT 保存確認"
           echo "========================================"
 
+
           ls -lh boat_race_context.json
 
+
           echo ""
+
 
           python - <<'PY'
 
           import json
+
 
           with open(
               "boat_race_context.json",
@@ -787,52 +852,64 @@ def get_row(source):
 
               data = json.load(f)
 
+
           print(
               "開催日:",
               data["race"]["date"]
           )
+
 
           print(
               "場:",
               data["race"]["venue"]
           )
 
+
           print(
               "R:",
               data["race"]["race_no"]
           )
+
 
           print(
               "レースコード:",
               data["race"]["race_code"]
           )
 
+
           print("")
+
 
           print(
               "展示タイム:",
               data["status"]["tkz"]
           )
 
+
           print(
               "スタート展示:",
               data["status"]["stt"]
           )
+
 
           print(
               "天候・水面:",
               data["status"]["sui"]
           )
 
+
           print(
               "3連単オッズ:",
               data["status"]["od3"]
           )
 
+
           print("")
+
 
           print(
               "JSON確認: OK"
           )
+
 
           PY
