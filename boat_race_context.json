@@ -1,28 +1,28 @@
 {
-  "generated_at": "2026-08-22T13:35:16.674752+09:00",
+  "generated_at": "2026-08-22T14:03:16.071215+09:00",
   "race": {
     "date": "2026-08-22",
-    "venue": "唐津",
-    "venue_code": "23",
-    "race_no": 11,
-    "race_code": "202608222311"
+    "venue": "芦屋",
+    "venue_code": "21",
+    "race_no": 12,
+    "race_code": "202608222112"
   },
   "sources": {
     "tkz": {
       "available": false,
-      "csv_rows": 58
+      "csv_rows": 66
     },
     "stt": {
       "available": false,
-      "csv_rows": 58
+      "csv_rows": 66
     },
     "sui": {
       "available": false,
-      "csv_rows": 58
+      "csv_rows": 66
     },
     "od3": {
       "available": false,
-      "csv_rows": 58
+      "csv_rows": 66
     }
   },
   "summary": {
