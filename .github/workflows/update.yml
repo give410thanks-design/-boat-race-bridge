@@ -165,77 +165,229 @@ jobs:
           # CSV取得関数
           # ========================================
 
-          def get_row(source):
+def get_row(source):
 
-              url = (
-                  "https://boatracecsv.github.io/data/previews/"
-                  + source
-                  + "/"
-                  + date_path
-                  + ".csv"
-              )
+    url = (
+        "https://boatracecsv.github.io/data/previews/"
+        + source
+        + "/"
+        + date_path
+        + ".csv"
+    )
 
-              print("")
-              print("取得:", source)
-              print("URL:", url)
+    print("")
+    print("取得:", source)
+    print("URL:", url)
 
-              try:
+    try:
 
-                  with urllib.request.urlopen(
-                      url,
-                      timeout=30
-                  ) as response:
+        with urllib.request.urlopen(
+            url,
+            timeout=30
+        ) as response:
 
-                      text = response.read().decode(
-                          "utf-8-sig"
-                      )
+            text = response.read().decode(
+                "utf-8-sig"
+            )
 
-                  reader = csv.DictReader(
-                      text.splitlines()
-                  )
+        reader = csv.DictReader(
+            text.splitlines()
+        )
 
-                  rows = list(reader)
+        rows = list(reader)
 
-                  for row in rows:
+        print(
+            source,
+            "CSV行数:",
+            len(rows)
+        )
 
-                      code = (
-                          row.get("レースコード")
-                          or ""
-                      ).strip()
+        print(
+            source,
+            "検索対象レースコード:",
+            target_code
+        )
 
-                      if code == target_code:
+        # ----------------------------------------
+        # CSV内の実際のレースコードを診断
+        # ----------------------------------------
 
-                          print(
-                              source,
-                              "取得成功"
-                          )
+        race_codes = []
 
-                          return row, len(rows), None
+        for row in rows:
 
-                  print(
-                      source,
-                      "対象レースなし"
-                  )
+            code = (
+                row.get("レースコード")
+                or ""
+            ).strip()
 
-                  return None, len(rows), None
+            if code:
+                race_codes.append(code)
 
-              except Exception as e:
+        print(
+            source,
+            "CSV内レースコード一覧:"
+        )
 
-                  print(
-                      source,
-                      "取得エラー:",
-                      repr(e)
-                  )
+        for code in race_codes:
+            print(
+                "  ",
+                repr(code)
+            )
 
-                  return None, 0, (
-                      type(e).__name__
-                      + ": "
-                      + str(e)
-                  )
+        # ----------------------------------------
+        # 対象レース検索
+        # ----------------------------------------
 
+        for row in rows:
+
+            code = (
+                row.get("レースコード")
+                or ""
+            ).strip()
+
+            if code == target_code:
+
+                print(
+                    source,
+                    "取得成功"
+                )
+
+                return row, len(rows), None
+
+        print(
+            source,
+            "対象レースなし"
+        )
+
+        return None, len(rows), None
+
+    except Exception as e:
+
+        print(
+            source,
+            "取得エラー:",
+            repr(e)
+        )
+
+        return None, 0, (
+            type(e).__name__
+            + ": "
+            + str(e)
+        )
+          
 
           # ========================================
-          # 展示タイム
+          # def get_row(source):
+
+    url = (
+        "https://boatracecsv.github.io/data/previews/"
+        + source
+        + "/"
+        + date_path
+        + ".csv"
+    )
+
+    print("")
+    print("取得:", source)
+    print("URL:", url)
+
+    try:
+
+        with urllib.request.urlopen(
+            url,
+            timeout=30
+        ) as response:
+
+            text = response.read().decode(
+                "utf-8-sig"
+            )
+
+        reader = csv.DictReader(
+            text.splitlines()
+        )
+
+        rows = list(reader)
+
+        print(
+            source,
+            "CSV行数:",
+            len(rows)
+        )
+
+        print(
+            source,
+            "検索対象レースコード:",
+            target_code
+        )
+
+        # ----------------------------------------
+        # CSV内の実際のレースコードを診断
+        # ----------------------------------------
+
+        race_codes = []
+
+        for row in rows:
+
+            code = (
+                row.get("レースコード")
+                or ""
+            ).strip()
+
+            if code:
+                race_codes.append(code)
+
+        print(
+            source,
+            "CSV内レースコード一覧:"
+        )
+
+        for code in race_codes:
+            print(
+                "  ",
+                repr(code)
+            )
+
+        # ----------------------------------------
+        # 対象レース検索
+        # ----------------------------------------
+
+        for row in rows:
+
+            code = (
+                row.get("レースコード")
+                or ""
+            ).strip()
+
+            if code == target_code:
+
+                print(
+                    source,
+                    "取得成功"
+                )
+
+                return row, len(rows), None
+
+        print(
+            source,
+            "対象レースなし"
+        )
+
+        return None, len(rows), None
+
+    except Exception as e:
+
+        print(
+            source,
+            "取得エラー:",
+            repr(e)
+        )
+
+        return None, 0, (
+            type(e).__name__
+            + ": "
+            + str(e)
+        )展示タイム
           # ========================================
 
           row, total, error = get_row("tkz")
