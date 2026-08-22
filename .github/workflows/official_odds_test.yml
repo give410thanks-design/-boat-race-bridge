@@ -3,10 +3,10 @@ name: Official Odds Test
 on:
   workflow_dispatch:
     inputs:
-      venue_code:
-        description: "場コード（芦屋=21）"
+      venue_name:
+        description: "場名（例：芦屋、戸田、江戸川、唐津）"
         required: true
-        default: "21"
+        default: "芦屋"
 
       race_no:
         description: "レース番号"
@@ -41,7 +41,7 @@ jobs:
 
       - name: Get official BOAT RACE odds
         env:
-          VENUE_CODE: ${{ github.event.inputs.venue_code }}
+          VENUE_NAME: ${{ github.event.inputs.venue_name }}
           RACE_NO: ${{ github.event.inputs.race_no }}
           RACE_DATE: ${{ github.event.inputs.race_date }}
 
@@ -67,16 +67,82 @@ jobs:
 
 
           # ==============================
+          # BOAT RACE場名 → 場コード
+          # ==============================
+
+          VENUE_CODES = {
+
+              "桐生": "01",
+              "戸田": "02",
+              "江戸川": "03",
+              "平和島": "04",
+              "多摩川": "05",
+              "浜名湖": "06",
+              "蒲郡": "07",
+              "常滑": "08",
+              "津": "09",
+              "三国": "10",
+              "びわこ": "11",
+              "住之江": "12",
+              "尼崎": "13",
+              "鳴門": "14",
+              "丸亀": "15",
+              "児島": "16",
+              "宮島": "17",
+              "徳山": "18",
+              "下関": "19",
+              "若松": "20",
+              "芦屋": "21",
+              "福岡": "22",
+              "唐津": "23",
+              "大村": "24"
+
+          }
+
+
+          # ==============================
           # 入力値
           # ==============================
 
-          venue = os.environ["VENUE_CODE"]
+          venue_name = os.environ[
+              "VENUE_NAME"
+          ].strip()
 
           race_no = int(
               os.environ["RACE_NO"]
           )
 
-          date_value = os.environ["RACE_DATE"]
+          date_value = os.environ[
+              "RACE_DATE"
+          ].strip()
+
+
+          # ==============================
+          # 場名チェック
+          # ==============================
+
+          if venue_name not in VENUE_CODES:
+
+              raise RuntimeError(
+
+                  "不正な場名です: "
+                  + venue_name
+                  + "\n"
+                  + "使用可能な場名: "
+                  + "、".join(
+                      VENUE_CODES.keys()
+                  )
+
+              )
+
+
+          # ==============================
+          # 場コード取得
+          # ==============================
+
+          venue_code = VENUE_CODES[
+              venue_name
+          ]
 
 
           # ==============================
@@ -89,23 +155,10 @@ jobs:
           ):
 
               raise RuntimeError(
+
                   "開催日はYYYYMMDD形式で指定してください: "
                   + date_value
-              )
 
-
-          # ==============================
-          # 場コードチェック
-          # ==============================
-
-          if not re.fullmatch(
-              r"\d{2}",
-              venue
-          ):
-
-              raise RuntimeError(
-                  "場コードは2桁の数字で指定してください: "
-                  + venue
               )
 
 
@@ -116,8 +169,10 @@ jobs:
           if not 1 <= race_no <= 12:
 
               raise RuntimeError(
+
                   "レース番号は1〜12で指定してください: "
                   + str(race_no)
+
               )
 
 
@@ -126,10 +181,15 @@ jobs:
           # ==============================
 
           url = (
+
               "https://www.boatrace.jp/owpc/pc/race/odds3t"
+
               f"?rno={race_no}"
-              f"&jcd={venue}"
+
+              f"&jcd={venue_code}"
+
               f"&hd={date_value}"
+
           )
 
 
@@ -137,10 +197,30 @@ jobs:
           print("Official BOAT RACE Odds Test")
           print("================================")
 
-          print("開催日:", date_value)
-          print("場コード:", venue)
-          print("レース:", race_no)
-          print("URL:", url)
+          print(
+              "開催日:",
+              date_value
+          )
+
+          print(
+              "場名:",
+              venue_name
+          )
+
+          print(
+              "場コード:",
+              venue_code
+          )
+
+          print(
+              "レース:",
+              race_no
+          )
+
+          print(
+              "URL:",
+              url
+          )
 
           print("================================")
 
@@ -182,8 +262,11 @@ jobs:
               "url":
                   url,
 
+              "venue_name":
+                  venue_name,
+
               "venue_code":
-                  venue,
+                  venue_code,
 
               "race_no":
                   race_no,
@@ -1084,6 +1167,12 @@ jobs:
           print(
               "開催日:",
               result["date"]
+          )
+
+
+          print(
+              "場名:",
+              result["venue_name"]
           )
 
 
