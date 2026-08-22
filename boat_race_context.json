@@ -1,0 +1,40 @@
+{
+  "generated_at": "2026-08-22T13:35:16.674752+09:00",
+  "race": {
+    "date": "2026-08-22",
+    "venue": "唐津",
+    "venue_code": "23",
+    "race_no": 11,
+    "race_code": "202608222311"
+  },
+  "sources": {
+    "tkz": {
+      "available": false,
+      "csv_rows": 58
+    },
+    "stt": {
+      "available": false,
+      "csv_rows": 58
+    },
+    "sui": {
+      "available": false,
+      "csv_rows": 58
+    },
+    "od3": {
+      "available": false,
+      "csv_rows": 58
+    }
+  },
+  "summary": {
+    "exhibition_time": {},
+    "start_exhibition": {},
+    "fastest_exhibition": null,
+    "fastest_start": null
+  },
+  "status": {
+    "tkz": false,
+    "stt": false,
+    "sui": false,
+    "od3": false
+  }
+}
