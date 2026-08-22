@@ -331,6 +331,10 @@ jobs:
                   print("URL:", official_url)
 
 
+                  # ==================================================
+                  # User-Agent
+                  # ==================================================
+
                   request = urllib.request.Request(
 
                       official_url,
@@ -349,6 +353,10 @@ jobs:
                   )
 
 
+                  # ==================================================
+                  # HTML取得
+                  # ==================================================
+
                   with urllib.request.urlopen(
                       request,
                       timeout=30
@@ -366,9 +374,9 @@ jobs:
                   )
 
 
-                  # --------------------------------------------------
+                  # ==================================================
                   # 3連単オッズ表確認
-                  # --------------------------------------------------
+                  # ==================================================
 
                   if "3連単オッズ" not in html:
 
@@ -377,12 +385,12 @@ jobs:
                       )
 
 
-                  # --------------------------------------------------
+                  # ==================================================
                   # 公式HTML保存
-                  # --------------------------------------------------
+                  # ==================================================
 
                   Path(
-                      "official_odds.context.html"
+                      "official_odds_context.html"
                   ).write_text(
 
                       html,
@@ -391,11 +399,142 @@ jobs:
                   )
 
 
-                  # --------------------------------------------------
-                  # oddsPoint取得
-                  # --------------------------------------------------
+                  print(
+                      "公式HTML保存: OK"
+                  )
 
-                  pattern = re.compile(
+
+                  # ==================================================
+                  # 3連単オッズ表のtableを探す
+                  # ==================================================
+
+                  title_position = html.find(
+                      "3連単オッズ"
+                  )
+
+
+                  if title_position == -1:
+
+                      raise RuntimeError(
+                          "3連単オッズタイトルが見つかりません"
+                      )
+
+
+                  table_start = html.find(
+                      "<table",
+                      title_position
+                  )
+
+
+                  table_end = html.find(
+                      "</table>",
+                      table_start
+                  )
+
+
+                  if (
+                      table_start == -1
+                      or table_end == -1
+                  ):
+
+                      raise RuntimeError(
+                          "3連単オッズ表のtableが見つかりません"
+                      )
+
+
+                  odds_table_html = html[
+                      table_start:
+                      table_end + len("</table>")
+                  ]
+
+
+                  # ==================================================
+                  # tbody取得
+                  # ==================================================
+
+                  tbody_match = re.search(
+
+                      r"<tbody[^>]*>"
+                      r"(.*?)"
+                      r"</tbody>",
+
+                      odds_table_html,
+
+                      re.IGNORECASE |
+                      re.DOTALL
+
+                  )
+
+
+                  if not tbody_match:
+
+                      raise RuntimeError(
+                          "3連単オッズ表のtbodyが見つかりません"
+                      )
+
+
+                  tbody_html = tbody_match.group(1)
+
+
+                  # ==================================================
+                  # tr取得
+                  # ==================================================
+
+                  rows = re.findall(
+
+                      r"<tr[^>]*>"
+                      r"(.*?)"
+                      r"</tr>",
+
+                      tbody_html,
+
+                      re.IGNORECASE |
+                      re.DOTALL
+
+                  )
+
+
+                  print(
+                      "オッズ表行数:",
+                      len(rows)
+                  )
+
+
+                  if len(rows) < 20:
+
+                      raise RuntimeError(
+                          "3連単オッズ表の行数が少なすぎます: "
+                          + str(len(rows))
+                      )
+
+
+                  # ==================================================
+                  # td文字列取得
+                  # ==================================================
+
+                  def extract_td_text(td_html):
+
+                      text = re.sub(
+                          r"<[^>]+>",
+                          "",
+                          td_html
+                      )
+
+                      text = (
+                          text
+                          .replace("&nbsp;", " ")
+                          .replace("&#160;", " ")
+                          .strip()
+                      )
+
+                      return text
+
+
+                  # ==================================================
+                  # oddsPoint取得
+                  # ==================================================
+
+                  odds_pattern = re.compile(
 
                       r'<td[^>]*'
                       r'class=["\'][^"\']*'
@@ -405,18 +544,36 @@ jobs:
                       r'</td>',
 
                       re.IGNORECASE
+
                   )
 
 
-                  matches = pattern.findall(
-                      html
+                  all_odds_matches = odds_pattern.findall(
+                      odds_table_html
                   )
 
 
-                  odds_values = []
+                  target[
+                      "official_odds_point_count"
+                  ] = len(
+                      all_odds_matches
+                  )
 
 
-                  for value in matches:
+                  print(
+                      "オッズ表内のoddsPoint個数:",
+                      len(all_odds_matches)
+                  )
+
+
+                  # ==================================================
+                  # 数値オッズ確認
+                  # ==================================================
+
+                  numeric_all = []
+
+
+                  for value in all_odds_matches:
 
                       value = value.strip()
 
@@ -428,7 +585,7 @@ jobs:
 
                       try:
 
-                          odds_values.append(
+                          numeric_all.append(
                               float(value)
                           )
 
@@ -437,520 +594,274 @@ jobs:
                           pass
 
 
-                  print(
-                      "oddsPoint:",
-                      len(matches)
-                  )
-
-                  print(
-                      "数値オッズ:",
-                      len(odds_values)
+                  target[
+                      "official_numeric_odds_count"
+                  ] = len(
+                      numeric_all
                   )
 
 
-                  # --------------------------------------------------
-                  # 公式オッズ組み合わせ取得
+                  print(
+                      "数値オッズ数:",
+                      len(numeric_all)
+                  )
+
+
+                  # ==================================================
+                  # 3連単組み合わせ復元
                   #
-                  # HTMLの3連単表は、
-                  #
-                  # 1-2-3
-                  # 1-2-4
-                  # 1-2-5
-                  #
-                  # のように、先頭艇ごとの6ブロック構造。
-                  #
-                  # 各ブロックは4行、
-                  # 各行に6つの「2着・3着・オッズ」
-                  # の組があります。
-                  # --------------------------------------------------
+                  # 今回120/120一致を確認した
+                  # official_odds_test.yml と同じ方式
+                  # ==================================================
 
                   odds_by_combination = {}
 
 
-                  # 3連単表本体を探す
-                  table_match = re.search(
-
-                      r'<div[^>]*class=["\'][^"\']*table1[^"\']*["\'][^>]*>'
-                      r'\s*<table[^>]*>'
-                      r'(.*?)'
-                      r'</table>',
-
-                      html,
-
-                      re.IGNORECASE |
-                      re.DOTALL
-                  )
+                  current_second = [
+                      None,
+                      None,
+                      None,
+                      None,
+                      None,
+                      None
+                  ]
 
 
-                  if not table_match:
+                  for row_index, row_html in enumerate(rows):
 
-                      raise RuntimeError(
-                          "3連単オッズテーブルを取得できません"
-                      )
+                      td_blocks = re.findall(
 
-
-                  table_html = table_match.group(1)
-
-
-                  # --------------------------------------------------
-                  # tbodyを取得
-                  # --------------------------------------------------
-
-                  tbody_match = re.search(
-
-                      r'<tbody[^>]*>'
-                      r'(.*?)'
-                      r'</tbody>',
-
-                      table_html,
-
-                      re.IGNORECASE |
-                      re.DOTALL
-                  )
-
-
-                  if not tbody_match:
-
-                      raise RuntimeError(
-                          "3連単オッズtbodyを取得できません"
-                      )
-
-
-                  tbody = tbody_match.group(1)
-
-
-                  # --------------------------------------------------
-                  # 行取得
-                  # --------------------------------------------------
-
-                  rows_html = re.findall(
-
-                      r'<tr[^>]*>'
-                      r'(.*?)'
-                      r'</tr>',
-
-                      tbody,
-
-                      re.IGNORECASE |
-                      re.DOTALL
-                  )
-
-
-                  # --------------------------------------------------
-                  # 3連単表の6艇ブロック
-                  # --------------------------------------------------
-
-                  current_first = None
-
-                  for row_html in rows_html:
-
-                      # rowspan付きの2着艇
-                      rowspan_matches = re.findall(
-
-                          r'<td[^>]*rowspan=["\']4["\'][^>]*>'
-                          r'\s*([1-6])\s*'
-                          r'</td>',
-
-                          row_html,
-
-                          re.IGNORECASE
-                      )
-
-
-                      # 1行内の通常セル
-                      cells = re.findall(
-
-                          r'<td[^>]*>'
-                          r'\s*(.*?)\s*'
-                          r'</td>',
+                          r"<td\b[^>]*>"
+                          r".*?"
+                          r"</td>",
 
                           row_html,
 
                           re.IGNORECASE |
                           re.DOTALL
+
                       )
 
 
-                      # HTMLタグ除去
-                      clean_cells = []
-
-                      for cell in cells:
-
-                          cell = re.sub(
-                              r'<[^>]+>',
-                              '',
-                              cell
-                          )
-
-                          cell = cell.strip()
-
-                          clean_cells.append(cell)
+                      td_count = len(td_blocks)
 
 
-                      # ------------------------------------------------
-                      # 1行目には各ブロックの2着艇が入る
-                      # ------------------------------------------------
+                      print(
+                          f"行 {row_index + 1}: td={td_count}"
+                      )
 
-                      if rowspan_matches:
 
-                          second_boats = [
-                              int(x)
-                              for x in rowspan_matches
-                          ]
+                      # ==================================================
+                      # 各1着グループの最初の行
+                      # ==================================================
+
+                      if td_count == 18:
+
+                          for group in range(6):
+
+                              base = group * 3
+
+
+                              second_text = extract_td_text(
+                                  td_blocks[base]
+                              )
+
+                              third_text = extract_td_text(
+                                  td_blocks[base + 1]
+                              )
+
+                              odds_text = extract_td_text(
+                                  td_blocks[base + 2]
+                              )
+
+
+                              try:
+
+                                  first = group + 1
+
+                                  second = int(
+                                      second_text
+                                  )
+
+                                  third = int(
+                                      third_text
+                                  )
+
+                                  odds = float(
+                                      odds_text.replace(
+                                          ",",
+                                          ""
+                                      )
+                                  )
+
+                              except ValueError:
+
+                                  continue
+
+
+                              current_second[
+                                  group
+                              ] = second
+
+
+                              combination = (
+                                  f"{first}-"
+                                  f"{second}-"
+                                  f"{third}"
+                              )
+
+
+                              odds_by_combination[
+                                  combination
+                              ] = odds
+
+
+                      # ==================================================
+                      # 2行目以降
+                      # ==================================================
+
+                      elif td_count == 12:
+
+                          for group in range(6):
+
+                              base = group * 2
+
+
+                              third_text = extract_td_text(
+                                  td_blocks[base]
+                              )
+
+                              odds_text = extract_td_text(
+                                  td_blocks[base + 1]
+                              )
+
+
+                              try:
+
+                                  first = group + 1
+
+                                  second = current_second[
+                                      group
+                                  ]
+
+                                  third = int(
+                                      third_text
+                                  )
+
+                                  odds = float(
+                                      odds_text.replace(
+                                          ",",
+                                          ""
+                                      )
+                                  )
+
+                              except (
+                                  ValueError,
+                                  TypeError
+                              ):
+
+                                  continue
+
+
+                              if second is None:
+
+                                  continue
+
+
+                              combination = (
+                                  f"{first}-"
+                                  f"{second}-"
+                                  f"{third}"
+                              )
+
+
+                              odds_by_combination[
+                                  combination
+                              ] = odds
+
 
                       else:
 
-                          second_boats = []
+                          print(
+                              "この行は想定外のtd数:",
+                              td_count
+                          )
 
 
-                      # ------------------------------------------------
-                      # oddsPointだけ抽出
-                      # ------------------------------------------------
+                  # ==================================================
+                  # 組み合わせ数
+                  # ==================================================
 
-                      row_odds = re.findall(
-
-                          r'<td[^>]*class=["\'][^"\']*oddsPoint[^"\']*["\'][^>]*>'
-                          r'\s*([^<]+?)\s*'
-                          r'</td>',
-
-                          row_html,
-
-                          re.IGNORECASE
-                      )
-
-
-                      # ------------------------------------------------
-                      # 3着艇とオッズを取得
-                      # ------------------------------------------------
-
-                      if row_odds:
-
-                          # この行のoddsPoint数
-                          for idx, odds_text in enumerate(
-                              row_odds
-                          ):
-
-                              try:
-
-                                  odds = float(
-                                      odds_text.strip().replace(",", "")
-                                  )
-
-                              except ValueError:
-
-                                  continue
-
-
-                              # 3着艇
-                              third_candidates = re.findall(
-
-                                  r'<td[^>]*class=["\'][^"\']*is-boatColor'
-                                  r'\d+[^"\']*["\'][^>]*>'
-                                  r'\s*([1-6])\s*'
-                                  r'</td>',
-
-                                  row_html,
-
-                                  re.IGNORECASE
-                              )
-
-
-                              if idx >= len(third_candidates):
-                                  continue
-
-
-                              third = int(
-                                  third_candidates[idx]
-                              )
-
-
-                              # ------------------------------------------------
-                              # 2着艇
-                              #
-                              # 1行目はrowspanから取得。
-                              # 2〜4行目は直前の4行ブロックの
-                              # 2着艇を引き継ぐ。
-                              # ------------------------------------------------
-
-                              if second_boats:
-
-                                  if idx < len(second_boats):
-
-                                      second = second_boats[idx]
-
-                                  else:
-
-                                      continue
-
-                              else:
-
-                                  # 後続行では現在のブロックから取得
-                                  if current_first is None:
-                                      continue
-
-                                  # 後続行の2着艇は
-                                  # 行内のboatColorセルから推定する
-                                  second_candidates = re.findall(
-
-                                      r'<td[^>]*class=["\'][^"\']*is-boatColor'
-                                      r'\d+[^"\']*["\'][^>]*>'
-                                      r'\s*([1-6])\s*'
-                                      r'</td>',
-
-                                      row_html,
-
-                                      re.IGNORECASE
-                                  )
-
-                                  if idx >= len(second_candidates):
-                                      continue
-
-                                  # 最初の通常艇セルが2着
-                                  second = int(
-                                      second_candidates[idx]
-                                  )
-
-
-                              first = current_first
-
-
-                              # 同じ艇は3連単として不正
-                              if (
-                                  first == second
-                                  or first == third
-                                  or second == third
-                              ):
-                                  continue
-
-
-                              combination = (
-                                  f"{first}-{second}-{third}"
-                              )
-
-
-                              odds_by_combination[
-                                  combination
-                              ] = odds
-
-
-                      # ------------------------------------------------
-                      # 先頭艇を更新
-                      # ------------------------------------------------
-
-                      if rowspan_matches:
-
-                          # 公式表の1行目は
-                          # ヘッダー順 1〜6 に対応
-                          #
-                          # ここでは6列ブロックを順番に処理するため
-                          # current_firstは別管理する。
-                          pass
-
-
-                  # --------------------------------------------------
-                  # 上記のHTML構造を確実に処理するため、
-                  # oddsPointの順番を公式表の列構造に合わせて再構築
-                  # --------------------------------------------------
-
-                  odds_by_combination = {}
-
-
-                  # --------------------------------------------------
-                  # テーブルのtheadから先頭艇1〜6を確認
-                  # --------------------------------------------------
-
-                  header_match = re.search(
-
-                      r'<thead[^>]*>'
-                      r'(.*?)'
-                      r'</thead>',
-
-                      table_html,
-
-                      re.IGNORECASE |
-                      re.DOTALL
+                  combination_count = len(
+                      odds_by_combination
                   )
 
 
-                  if not header_match:
-
-                      raise RuntimeError(
-                          "3連単オッズのヘッダーが見つかりません"
+                  unique_combination_count = len(
+                      set(
+                          odds_by_combination.keys()
                       )
-
-
-                  header_boats = [
-                      int(x)
-                      for x in re.findall(
-                          r'<th[^>]*is-boatColor\d[^>]*>'
-                          r'\s*([1-6])\s*'
-                          r'</th>',
-                          header_match.group(1),
-                          re.IGNORECASE
-                      )
-                  ]
-
-
-                  if header_boats != [1, 2, 3, 4, 5, 6]:
-
-                      raise RuntimeError(
-                          "3連単オッズの艇順を確認できません: "
-                          + str(header_boats)
-                      )
-
-
-                  # --------------------------------------------------
-                  # tbodyを4行ずつ、6ブロックとして処理
-                  # --------------------------------------------------
-
-                  # 120個のoddsPointは公式HTMLの表示順。
-                  #
-                  # 各4行ブロックについて、
-                  # 1列目 = 1着1
-                  # 2列目 = 1着2
-                  # ...
-                  #
-                  # 各列のrowspan値が2着、
-                  # その右隣の数字が3着。
-                  # --------------------------------------------------
-
-                  all_rows = re.findall(
-
-                      r'<tr[^>]*>'
-                      r'(.*?)'
-                      r'</tr>',
-
-                      tbody,
-
-                      re.IGNORECASE |
-                      re.DOTALL
                   )
 
 
-                  # 4行ずつ処理
-                  for block_start in range(
-                      0,
-                      len(all_rows),
-                      4
-                  ):
+                  # ==================================================
+                  # 不正組み合わせ確認
+                  # ==================================================
 
-                      block_rows = all_rows[
-                          block_start:block_start + 4
-                      ]
+                  invalid_combinations = []
 
 
-                      if len(block_rows) != 4:
+                  for combination in odds_by_combination:
+
+                      parts = combination.split("-")
+
+
+                      if len(parts) != 3:
+
+                          invalid_combinations.append(
+                              combination
+                          )
+
                           continue
 
 
-                      # 最初の行から6列の2着艇を取得
-                      first_row = block_rows[0]
+                      try:
 
+                          numbers = [
+                              int(x)
+                              for x in parts
+                          ]
 
-                      second_boats = re.findall(
+                      except ValueError:
 
-                          r'<td[^>]*rowspan=["\']4["\'][^>]*>'
-                          r'\s*([1-6])\s*'
-                          r'</td>',
+                          invalid_combinations.append(
+                              combination
+                          )
 
-                          first_row,
-
-                          re.IGNORECASE
-                      )
-
-
-                      if len(second_boats) != 6:
                           continue
 
 
-                      second_boats = [
-                          int(x)
-                          for x in second_boats
-                      ]
-
-
-                      # 各行の3着艇 + オッズ
-                      for row_index, row_html in enumerate(
-                          block_rows
+                      if (
+                          any(
+                              x < 1 or x > 6
+                              for x in numbers
+                          )
+                          or len(set(numbers)) != 3
                       ):
 
-                          third_cells = re.findall(
-
-                              r'<td[^>]*is-boatColor\d+[^>]*>'
-                              r'\s*([1-6])\s*'
-                              r'</td>',
-
-                              row_html,
-
-                              re.IGNORECASE
+                          invalid_combinations.append(
+                              combination
                           )
 
 
-                          odds_cells = re.findall(
-
-                              r'<td[^>]*class=["\'][^"\']*oddsPoint[^"\']*["\'][^>]*>'
-                              r'\s*([^<]+?)\s*'
-                              r'</td>',
-
-                              row_html,
-
-                              re.IGNORECASE
-                          )
+                  invalid_combination_count = len(
+                      invalid_combinations
+                  )
 
 
-                          if len(third_cells) != 6:
-                              continue
-
-
-                          if len(odds_cells) != 6:
-                              continue
-
-
-                          for column in range(6):
-
-                              first = header_boats[column]
-
-                              second = second_boats[column]
-
-                              third = int(
-                                  third_cells[column]
-                              )
-
-
-                              try:
-
-                                  odds = float(
-                                      odds_cells[column]
-                                      .strip()
-                                      .replace(",", "")
-                                  )
-
-                              except ValueError:
-
-                                  continue
-
-
-                              if (
-                                  first == second
-                                  or first == third
-                                  or second == third
-                              ):
-                                  continue
-
-
-                              combination = (
-                                  f"{first}-{second}-{third}"
-                              )
-
-
-                              odds_by_combination[
-                                  combination
-                              ] = odds
-
-
-                  # --------------------------------------------------
-                  # 結果
-                  # --------------------------------------------------
+                  # ==================================================
+                  # target.jsonへ保存する公式オッズ
+                  # ==================================================
 
                   target[
                       "official_odds"
@@ -959,36 +870,90 @@ jobs:
 
                   target[
                       "official_odds_count"
-                  ] = len(
-                      odds_by_combination
-                  )
-
-
-                  if len(odds_by_combination) != 120:
-
-                      raise RuntimeError(
-
-                          "公式3連単オッズを120通り取得できませんでした: "
-                          + str(
-                              len(odds_by_combination)
-                          )
-                      )
+                  ] = combination_count
 
 
                   target[
-                      "official_odds_success"
-                  ] = True
+                      "official_odds_unique_count"
+                  ] = unique_combination_count
+
+
+                  target[
+                      "official_odds_invalid_count"
+                  ] = invalid_combination_count
+
+
+                  # ==================================================
+                  # 代表オッズ
+                  # ==================================================
+
+                  target[
+                      "official_odds_sample"
+                  ] = {
+
+                      key:
+                      odds_by_combination[key]
+
+                      for key in [
+
+                          "1-2-3",
+                          "1-2-4",
+                          "1-2-5",
+
+                          "1-2-6",
+
+                          "1-3-2",
+                          "1-3-4",
+                          "1-3-5",
+
+                          "1-4-2",
+                          "1-4-3"
+
+                      ]
+
+                      if key in odds_by_combination
+                  }
+
+
+                  # ==================================================
+                  # 結果表示
+                  # ==================================================
+
+                  print("")
+                  print("================================")
+                  print("3連単組み合わせ解析結果")
+                  print("================================")
 
 
                   print(
-                      "公式3連単オッズ:",
-                      len(odds_by_combination),
-                      "通り"
+                      "組み合わせ数:",
+                      combination_count
                   )
 
 
                   print(
-                      "確認 1-2-3:",
+                      "重複なし組み合わせ数:",
+                      unique_combination_count
+                  )
+
+
+                  print(
+                      "不正組み合わせ数:",
+                      invalid_combination_count
+                  )
+
+
+                  print(
+                      "数値オッズ数:",
+                      len(numeric_all)
+                  )
+
+
+                  print("")
+
+
+                  print(
+                      "1-2-3:",
                       odds_by_combination.get(
                           "1-2-3"
                       )
@@ -996,7 +961,7 @@ jobs:
 
 
                   print(
-                      "確認 1-2-4:",
+                      "1-2-4:",
                       odds_by_combination.get(
                           "1-2-4"
                       )
@@ -1004,7 +969,135 @@ jobs:
 
 
                   print(
-                      "確認 1-2-5:",
+                      "1-2-5:",
+                      odds_by_combination.get(
+                          "1-2-5"
+                      )
+                  )
+
+
+                  print("================================")
+
+
+                  # ==================================================
+                  # 120通り確認
+                  # ==================================================
+
+                  if combination_count != 120:
+
+                      raise RuntimeError(
+
+                          "3連単組み合わせを120通り復元できませんでした: "
+                          + str(
+                              combination_count
+                          )
+                          + "通り"
+
+                      )
+
+
+                  # ==================================================
+                  # 重複確認
+                  # ==================================================
+
+                  if unique_combination_count != 120:
+
+                      raise RuntimeError(
+                          "3連単組み合わせに重複があります"
+                      )
+
+
+                  # ==================================================
+                  # 不正組み合わせ確認
+                  # ==================================================
+
+                  if invalid_combinations:
+
+                      raise RuntimeError(
+
+                          "不正な3連単組み合わせがあります: "
+                          + str(
+                              invalid_combinations[:10]
+                          )
+
+                      )
+
+
+                  # ==================================================
+                  # 数値オッズ120個確認
+                  # ==================================================
+
+                  if len(numeric_all) != 120:
+
+                      raise RuntimeError(
+
+                          "数値オッズが120個ではありません: "
+                          + str(
+                              len(numeric_all)
+                          )
+
+                      )
+
+
+                  # ==================================================
+                  # 成功
+                  # ==================================================
+
+                  target[
+                      "official_odds_success"
+                  ] = True
+
+
+                  print("")
+                  print("================================")
+                  print("公式オッズ取得成功")
+                  print("================================")
+
+
+                  print(
+                      "3連単オッズ:",
+                      len(numeric_all),
+                      "個"
+                  )
+
+
+                  print(
+                      "組み合わせ:",
+                      combination_count,
+                      "通り"
+                  )
+
+
+                  print(
+                      "重複なし:",
+                      unique_combination_count
+                  )
+
+
+                  print(
+                      "不正組み合わせ:",
+                      invalid_combination_count
+                  )
+
+
+                  print(
+                      "1-2-3:",
+                      odds_by_combination.get(
+                          "1-2-3"
+                      )
+                  )
+
+
+                  print(
+                      "1-2-4:",
+                      odds_by_combination.get(
+                          "1-2-4"
+                      )
+                  )
+
+
+                  print(
+                      "1-2-5:",
                       odds_by_combination.get(
                           "1-2-5"
                       )
@@ -1083,57 +1176,69 @@ jobs:
           print("BOAT RACE Bridge")
           print("================================")
 
+
           print(
               "取得時刻:",
               now.isoformat()
           )
+
 
           print(
               "総レース数:",
               len(result["races"])
           )
 
+
           print(
               "指定場:",
               venue
           )
+
 
           print(
               "指定R:",
               race_no
           )
 
+
           print(
               "レースコード:",
               target["race_code"]
           )
+
 
           print(
               "指定レース存在:",
               target["exists"]
           )
 
+
           print(
               "公式オッズ数:",
               target["official_odds_count"]
           )
+
 
           print(
               "公式オッズ成功:",
               target["official_odds_success"]
           )
 
+
           print(
               "エラー:",
               target["error"]
           )
+
 
           print(
               "公式オッズエラー:",
               target["official_odds_error"]
           )
 
+
           print("================================")
+
 
           PY
 
